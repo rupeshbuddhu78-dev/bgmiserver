@@ -23,7 +23,8 @@ using namespace std;
 #include <chrono>
 #include "Main/json.hpp"
 #include "Main/oxorany.cpp"
-#include "Bypass.h"
+
+// Global variables - defined BEFORE includes that use them
 bool bValid = false;
 bool isLogin = false;
 bool Expiry = false;
@@ -33,6 +34,8 @@ using json = nlohmann::json;
 android_app *g_App = 0;
 ASTExtraPlayerCharacter *g_LocalPlayer=0;
 ASTExtraPlayerController *g_PlayerController =0;
+
+#include "Bypass.h"
 #include "LoginKey.h"
 #define SLEEP_TIME 1000LL / 120LL
 #define TSL_FONT_DEFAULT_SIZE 12

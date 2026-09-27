@@ -7,6 +7,11 @@ time_t rng = 0;
 
 pthread_t t;
 
+// Global variables for authentication (extern - defined in main.cpp)
+extern std::string g_Token;
+extern std::string g_Auth;
+extern struct android_app* g_App;
+
 // Toast helper function
 void showToast(const char* message) {
     if (!g_App) return;

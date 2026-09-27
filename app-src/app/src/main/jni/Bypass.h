@@ -193,77 +193,6 @@ bool isLoggedIn = false;
 bool loginAttempted = false;
 std::string loginMessage = "Paste Key in Clipboard";
 std::string loginStatus = "";
-
-// Draw Login Screen using Eagle_GUI (called from game render thread)
-void DrawLoginScreen() {
-    if (!tslFontUI) return;
-    
-    float screenW = 800;
-    float screenH = 600;
-    
-    // Dark overlay background
-    DrawFilledRect(Canvas, FVector2D{0, 0}, screenW, screenH, FLinearColor(0, 0, 0, 0.85f));
-    
-    // Login box
-    float boxW = 400;
-    float boxH = 300;
-    float boxX = (screenW - boxW) / 2;
-    float boxY = (screenH - boxH) / 2;
-    
-    // Box background
-    DrawFilledRect(Canvas, FVector2D{boxX, boxY}, boxW, boxH, FLinearColor(0.10f, 0.10f, 0.15f, 0.95f));
-    
-    // Box border
-    DrawRectangle(Canvas, FVector2D{boxX, boxY}, boxW, boxH, 2.0f, FLinearColor(0.33f, 0.30f, 0.90f, 1.0f));
-    
-    // Title bar
-    DrawFilledRect(Canvas, FVector2D{boxX, boxY}, boxW, 40.0f, FLinearColor(0.15f, 0.20f, 0.89f, 1.0f));
-    
-    // Title text
-    DrawText(Canvas, FString("KEY LOGIN"), FVector2D{boxX + boxW/2 - 50, boxY + 12}, FLinearColor(1,1,1,1), FLinearColor(0,0,0,1), 16, true);
-    
-    // Instruction text
-    DrawText(Canvas, FString("Paste your license key in clipboard"), FVector2D{boxX + 20, boxY + 60}, FLinearColor(0.8f,0.8f,0.8f,1), FLinearColor(0,0,0,1), 12, false);
-    DrawText(Canvas, FString("then tap the START button below"), FVector2D{boxX + 20, boxY + 80}, FLinearColor(0.8f,0.8f,0.8f,1), FLinearColor(0,0,0,1), 12, false);
-    
-    // Key display area (shows clipboard content preview)
-    DrawFilledRect(Canvas, FVector2D{boxX + 20, boxY + 110}, boxW - 40, 40.0f, FLinearColor(0.05f, 0.05f, 0.1f, 1.0f));
-    DrawRectangle(Canvas, FVector2D{boxX + 20, boxY + 110}, boxW - 40, 40.0f, 1.0f, FLinearColor(1.0f, 0.4f, 0, 1.0f));
-    
-    std::string clipPreview = getClipboardText();
-    if (clipPreview.length() > 30) clipPreview = clipPreview.substr(0, 30) + "...";
-    if (clipPreview.empty()) clipPreview = "(empty - paste key here)";
-    DrawText(Canvas, FString(clipPreview.c_str()), FVector2D{boxX + 30, boxY + 122}, FLinearColor(1,1,1,1), FLinearColor(0,0,0,1), 11, false);
-    
-    // START button
-    float btnW = 200;
-    float btnH = 45;
-    float btnX = boxX + (boxW - btnW) / 2;
-    float btnY = boxY + 170;
-    
-    bool btnHovered = MouseInZone(FVector2D{btnX, btnY}, FVector2D{btnW, btnH});
-    FLinearColor btnColor = btnHovered ? FLinearColor(0.20f, 0.25f, 0.94f, 1.0f) : FLinearColor(0.33f, 0.30f, 0.90f, 1.0f);
-    DrawFilledRect(Canvas, FVector2D{btnX, btnY}, btnW, btnH, btnColor);
-    DrawText(Canvas, FString("START"), FVector2D{btnX + btnW/2 - 30, btnY + 14}, FLinearColor(1,1,1,1), FLinearColor(0,0,0,1), 16, true);
-    
-    // Handle button click
-    if (btnHovered && MouseDown) {
-        if (!loginAttempted) {
-            loginAttempted = true;
-            loginMessage = "Validating...";
-        }
-    }
-    
-    // Status message
-    if (!loginStatus.empty()) {
-        FLinearColor statusColor = (loginStatus.find("OK") != std::string::npos) ? 
-            FLinearColor(0, 1, 0, 1) : FLinearColor(1, 0.3f, 0.3f, 1);
-        DrawText(Canvas, FString(loginStatus.c_str()), FVector2D{boxX + 20, boxY + 240}, statusColor, FLinearColor(0,0,0,1), 13, false);
-    }
-    
-    // Footer
-    DrawText(Canvas, FString("Contact admin for key"), FVector2D{boxX + boxW/2 - 70, boxY + boxH - 25}, FLinearColor(0.5f,0.5f,0.5f,1), FLinearColor(0,0,0,1), 10, false);
-}
 // Hook install (run at init)
  
 void *THUNDER1_thread(void *) {
@@ -294,66 +223,38 @@ void *THUNDER1_thread(void *) {
     // ==================== LOGIN FLOW ====================
     LOGI("Waiting for key validation...");
     showToast("Paste your license key in clipboard");
+    sleep(3);
+    showToast("Auto-checking clipboard for key...");
     
-    // Wait for Eagle_GUI to be ready (fonts loaded by game)
-    int waitCount = 0;
-    while (!tslFontUI && waitCount < 120) {
-        sleep(1);
-        waitCount++;
-    }
-    
-    if (!tslFontUI) {
-        LOGI("Font not available, using clipboard auto-detect mode");
-        // Fallback: clipboard-based login without GUI
-        showToast("Waiting for key in clipboard...");
-        while (!isLoggedIn) {
-            std::string key = getClipboardText();
-            if (!key.empty() && key.length() >= 5) {
-                loginAttempted = true;
-                showToast("Validating key...");
-                std::string result = Login(key.c_str());
-                if (result == "OK") {
-                    isLoggedIn = true;
-                    showToast("Key verified! Loading...");
-                    LOGI("Login successful");
-                } else {
-                    loginStatus = "Invalid: " + result;
-                    LOGI("Login failed: %s", result.c_str());
-                    showToast(("Key invalid: " + result).c_str());
-                    loginAttempted = false;
-                    sleep(5);
-                }
+    // Clipboard-based login with toast feedback
+    int emptyClipCount = 0;
+    while (!isLoggedIn) {
+        std::string key = getClipboardText();
+        if (!key.empty() && key.length() >= 5) {
+            emptyClipCount = 0;
+            showToast("Validating key...");
+            LOGI("Found key in clipboard, validating...");
+            std::string result = Login(key.c_str());
+            if (result == "OK") {
+                isLoggedIn = true;
+                showToast("Key verified! Loading bypass...");
+                LOGI("Login successful");
+            } else {
+                loginStatus = "Invalid: " + result;
+                LOGI("Login failed: %s", result.c_str());
+                showToast(("Key invalid: " + result).c_str());
+                sleep(5);
+                showToast("Paste correct key in clipboard");
             }
-            if (!isLoggedIn) sleep(3);
-        }
-    } else {
-        // GUI-based login: wait for user to paste key and tap Start
-        showToast("Login screen active - paste key & tap Start");
-        while (!isLoggedIn) {
-            if (loginAttempted) {
-                std::string key = getClipboardText();
-                if (key.empty()) {
-                    loginStatus = "Clipboard empty!";
-                    showToast("Paste key in clipboard first!");
-                    loginAttempted = false;
-                } else {
-                    loginStatus = "Checking key...";
-                    std::string result = Login(key.c_str());
-                    if (result == "OK") {
-                        isLoggedIn = true;
-                        loginStatus = "Login successful!";
-                        showToast("Key verified! Loading bypass...");
-                        LOGI("Login successful");
-                    } else {
-                        loginStatus = "Failed: " + result;
-                        LOGI("Login failed: %s", result.c_str());
-                        showToast(("Key failed: " + result).c_str());
-                        loginAttempted = false;
-                    }
-                }
+        } else {
+            emptyClipCount++;
+            if (emptyClipCount == 1) {
+                showToast("Clipboard empty - paste your key!");
+            } else if (emptyClipCount % 10 == 0) {
+                showToast("Waiting for key in clipboard...");
             }
-            sleep(1);
         }
+        if (!isLoggedIn) sleep(3);
     }
     // ==================== LOGIN DONE ====================
 
