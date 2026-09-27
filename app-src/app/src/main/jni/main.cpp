@@ -1712,6 +1712,9 @@ if (g_LocalPlayer && g_PlayerController) {
 
 
 bool isChut = false;
+bool showLoginScreen = true; // Show login GUI until verified
+std::string loginStatusMsg = "Paste key in clipboard";
+int loginAttemptCount = 0;
 
 bool fileExists(const std::string &filePath)
 {
@@ -1746,7 +1749,7 @@ void GetKey()
 {
     char keypath[256];
 
-    sprintf(keypath, "/sdcard/Android/obb/%s/Key.lic", Gamepackage);
+    sprintf(keypath, "/sdcard/Android/obb/%s/key.lic", GamePackage);
 
     int fd = open(keypath, O_RDONLY);
     read(fd, &keyForLogin, sizeof(keyForLogin));
@@ -1757,7 +1760,7 @@ void GetKey()
 void logError(const char *errorMessage)
 {
     char filePath[256];
-    sprintf(filePath, "/sdcard/Android/obb/%s/Error.txt", Gamepackage);
+    sprintf(filePath, "/sdcard/Android/obb/%s/Error.txt", GamePackage);
 
     int fileDescriptor = open(filePath, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
@@ -1841,74 +1844,102 @@ int DownloadFile(const char *url, const char *outputPath)
 
 void *LoginThread(void *arg)
 {
+    // Wait for g_App to be set by Chameli thread
     while (!g_App)
     {
         sleep(1);
     }
+    sleep(2); // Extra wait for game to stabilize
+
     std::string ClipboardText;
     std::string Keystatus;
-    std::ofstream keyFile;
 
-    do {
-        if (!fileExists(Filepath.c_str()))
+    // Show initial toast
+    showToast("Paste your license key in clipboard");
+    sleep(2);
+
+    while (!isChut)
+    {
+        // Read clipboard
+        ClipboardText = getClipboardText();
+
+        if (ClipboardText.empty() || ClipboardText.length() < 5)
         {
-            ClipboardText = getClipboardText();
-
-            if (ClipboardText.empty()) {
-                logError("Clipboard is empty.");
-                OpenURL(OBFUSCATE("https://t.me/PRIVATE_SRC_FILES"));
-                exit(0);
+            loginStatusMsg = "Clipboard empty - paste key!";
+            if (loginAttemptCount == 0) {
+                showToast("Paste license key in clipboard");
             }
-
-            keyFile.open(Filepath);
-
-            if (!keyFile) {
-                logError("Failed to create or open key.lic file.");
-                OpenURL(OBFUSCATE("https://t.me/PRIVATE_SRC_FILES"));
-                exit(0);
+            loginAttemptCount++;
+            if (loginAttemptCount % 10 == 0) {
+                showToast("Waiting for key in clipboard...");
             }
-
-            keyFile << ClipboardText;
-            keyFile.close();
+            sleep(3);
+            continue;
         }
 
+        // Save clipboard to file
+        std::ofstream keyFile(Filepath);
+        if (!keyFile)
+        {
+            loginStatusMsg = "Cannot write key file!";
+            showToast("Error: Cannot write key file");
+            sleep(5);
+            continue;
+        }
+        keyFile << ClipboardText;
+        keyFile.close();
+
+        // Read key back
         GetKey();
 
-        if (fileExists(Filepath.c_str()) && !isFileEmpty(Filepath.c_str())) {
-            if (!isChut) {
-
-                Keystatus = Login(keyForLogin);
-
-                if (!Keystatus.empty() && Keystatus != "OK") {
-                    logError(Keystatus.c_str());
-                    OpenURL(OBFUSCATE("https://t.me/"));
-                    system("rm -rf /sdcard/Android/obb/com.pubg.imobile/key.lic");
-                    exit(1);
-                }
-
-                if (Keystatus == "OK") {
-                    isChut = bloda && g_Auth == g_Token;
-
-                    if (bloda && g_Auth == g_Token) {
-
-                    } else {
-                        logError("nhi hoga");
-                        OpenURL(OBFUSCATE("https://t.me/PRIVATE_SRC_FILES"));
-                        exit(0);
-                    }
-                }
-
-            } else {
-                logError("already True (:");
-                exit(0);
-            }
-        } else {
-            logError("Key file not found.");
-            OpenURL(OBFUSCATE("https://t.me/PRIVATE_SRC_FILES"));
-            exit(0);
+        if (strlen(keyForLogin) < 5)
+        {
+            loginStatusMsg = "Invalid key format";
+            showToast("Invalid key - try again");
+            sleep(3);
+            continue;
         }
 
-    } while (Keystatus != "OK");
+        // Attempt login
+        loginStatusMsg = "Validating key...";
+        showToast("Checking key...");
+        Keystatus = Login(keyForLogin);
+
+        if (Keystatus == "OK")
+        {
+            isChut = bloda && g_Auth == g_Token;
+            if (isChut)
+            {
+                loginStatusMsg = "Login successful!";
+                showToast("Key verified! Loading...");
+                showLoginScreen = false;
+                LOGI("Login successful - bypass loading");
+                break;
+            }
+            else
+            {
+                loginStatusMsg = "Token mismatch!";
+                showToast("Token verification failed");
+                // Delete bad key file
+                system(("rm -rf " + Filepath).c_str());
+                memset(keyForLogin, 0, sizeof(keyForLogin));
+                sleep(5);
+            }
+        }
+        else
+        {
+            loginStatusMsg = "Failed: " + Keystatus;
+            std::string toastMsg = "Key invalid: " + Keystatus;
+            if (toastMsg.length() > 60) toastMsg = toastMsg.substr(0, 60);
+            showToast(toastMsg.c_str());
+            logError(Keystatus.c_str());
+            // Delete bad key file
+            system(("rm -rf " + Filepath).c_str());
+            memset(keyForLogin, 0, sizeof(keyForLogin));
+            sleep(5);
+            showToast("Paste correct key in clipboard");
+        }
+    }
 
     return nullptr;
 }
@@ -1989,8 +2020,63 @@ void xThunderBulletInner(uintptr_t Weapon, FVector StartLoc, FRotator StartRot, 
 
 void *(*orig_esprender)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
 void *new_esprender(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
-RenderESP(Canvas, Canvas->SizeX, Canvas->SizeY);
-return orig_esprender(ViewportClient, Canvas);
+    // Draw login screen if not logged in
+    if (showLoginScreen && tslFontUI) {
+        float sw = Canvas->SizeX;
+        float sh = Canvas->SizeY;
+        
+        // Dark overlay
+        DrawFilledRect(Canvas, FVector2D{0, 0}, sw, sh, FLinearColor(0, 0, 0, 0.85f));
+        
+        // Login box
+        float boxW = sw * 0.6f;
+        float boxH = sh * 0.45f;
+        float boxX = (sw - boxW) / 2;
+        float boxY = (sh - boxH) / 2;
+        
+        // Box background
+        DrawFilledRect(Canvas, FVector2D{boxX, boxY}, boxW, boxH, FLinearColor(0.08f, 0.08f, 0.12f, 0.95f));
+        
+        // Box border
+        DrawRectangle(Canvas, FVector2D{boxX, boxY}, boxW, boxH, 2.0f, FLinearColor(0.2f, 0.6f, 1.0f, 1.0f));
+        
+        // Title bar
+        DrawFilledRect(Canvas, FVector2D{boxX, boxY}, boxW, 40.0f, FLinearColor(0.15f, 0.35f, 0.85f, 1.0f));
+        
+        // Title text
+        DrawText(Canvas, FString("LICENSE KEY LOGIN"), FVector2D{boxX + boxW/2 - 80, boxY + 12}, FLinearColor(1,1,1,1), FLinearColor(0,0,0,1), 16, true);
+        
+        // Instructions
+        DrawText(Canvas, FString("1. Copy your license key"), FVector2D{boxX + 20, boxY + 55}, FLinearColor(0.8f,0.8f,0.8f,1), FLinearColor(0,0,0,1), 12, false);
+        DrawText(Canvas, FString("2. Paste in phone clipboard"), FVector2D{boxX + 20, boxY + 75}, FLinearColor(0.8f,0.8f,0.8f,1), FLinearColor(0,0,0,1), 12, false);
+        DrawText(Canvas, FString("3. App will auto-detect and verify"), FVector2D{boxX + 20, boxY + 95}, FLinearColor(0.8f,0.8f,0.8f,1), FLinearColor(0,0,0,1), 12, false);
+        
+        // Clipboard preview box
+        DrawFilledRect(Canvas, FVector2D{boxX + 20, boxY + 120}, boxW - 40, 35.0f, FLinearColor(0.02f, 0.02f, 0.05f, 1.0f));
+        DrawRectangle(Canvas, FVector2D{boxX + 20, boxY + 120}, boxW - 40, 35.0f, 1.0f, FLinearColor(1.0f, 0.5f, 0, 1.0f));
+        
+        std::string clipPreview = getClipboardText();
+        if (clipPreview.length() > 35) clipPreview = clipPreview.substr(0, 35) + "...";
+        if (clipPreview.empty()) clipPreview = "(empty - paste key here)";
+        DrawText(Canvas, FString(clipPreview.c_str()), FVector2D{boxX + 28, boxY + 130}, FLinearColor(1,1,1,1), FLinearColor(0,0,0,1), 11, false);
+        
+        // Status message
+        FLinearColor statusColor = FLinearColor(1.0f, 0.8f, 0, 1.0f); // Yellow default
+        if (loginStatusMsg.find("successful") != std::string::npos) {
+            statusColor = FLinearColor(0, 1, 0, 1); // Green
+        } else if (loginStatusMsg.find("Failed") != std::string::npos || loginStatusMsg.find("invalid") != std::string::npos || loginStatusMsg.find("Invalid") != std::string::npos) {
+            statusColor = FLinearColor(1, 0.3f, 0.3f, 1); // Red
+        } else if (loginStatusMsg.find("Validating") != std::string::npos || loginStatusMsg.find("Checking") != std::string::npos) {
+            statusColor = FLinearColor(0.5f, 0.8f, 1.0f, 1); // Blue
+        }
+        DrawText(Canvas, FString(loginStatusMsg.c_str()), FVector2D{boxX + 20, boxY + 170}, statusColor, FLinearColor(0,0,0,1), 13, false);
+        
+        // Footer
+        DrawText(Canvas, FString("Contact admin for license key"), FVector2D{boxX + boxW/2 - 90, boxY + boxH - 25}, FLinearColor(0.4f,0.4f,0.5f,1), FLinearColor(0,0,0,1), 10, false);
+    }
+    
+    RenderESP(Canvas, Canvas->SizeX, Canvas->SizeY);
+    return orig_esprender(ViewportClient, Canvas);
 }
 
 int GetAndroidSdkVersion() {

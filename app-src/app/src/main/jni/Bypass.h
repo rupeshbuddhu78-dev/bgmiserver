@@ -188,11 +188,6 @@ return strlen(s);
 #include "Main/encrypt_protect.h"
 #include "LoginKey.h"
 
-// LOGIN STATE
-bool isLoggedIn = false;
-bool loginAttempted = false;
-std::string loginMessage = "Paste Key in Clipboard";
-std::string loginStatus = "";
 // Hook install (run at init)
  
 void *THUNDER1_thread(void *) {
@@ -220,43 +215,12 @@ void *THUNDER1_thread(void *) {
     LOGI(" THUNDER BYPASS LOADED");
     LOGI("UE4 size : 0x%04X | ANOGS size : 0x%04X",libUE4Size,libanogsSize);
 
-    // ==================== LOGIN FLOW ====================
-    LOGI("Waiting for key validation...");
-    showToast("Paste your license key in clipboard");
-    sleep(3);
-    showToast("Auto-checking clipboard for key...");
-    
-    // Clipboard-based login with toast feedback
-    int emptyClipCount = 0;
-    while (!isLoggedIn) {
-        std::string key = getClipboardText();
-        if (!key.empty() && key.length() >= 5) {
-            emptyClipCount = 0;
-            showToast("Validating key...");
-            LOGI("Found key in clipboard, validating...");
-            std::string result = Login(key.c_str());
-            if (result == "OK") {
-                isLoggedIn = true;
-                showToast("Key verified! Loading bypass...");
-                LOGI("Login successful");
-            } else {
-                loginStatus = "Invalid: " + result;
-                LOGI("Login failed: %s", result.c_str());
-                showToast(("Key invalid: " + result).c_str());
-                sleep(5);
-                showToast("Paste correct key in clipboard");
-            }
-        } else {
-            emptyClipCount++;
-            if (emptyClipCount == 1) {
-                showToast("Clipboard empty - paste your key!");
-            } else if (emptyClipCount % 10 == 0) {
-                showToast("Waiting for key in clipboard...");
-            }
-        }
-        if (!isLoggedIn) sleep(3);
+    // Wait for login to complete (handled by LoginThread in main.cpp)
+    extern bool isChut;
+    while (!isChut) {
+        sleep(1);
     }
-    // ==================== LOGIN DONE ====================
+    LOGI("Login verified - installing bypass hooks");
 
    #if defined(__aarch64__)
  LOGI("====================================================");
