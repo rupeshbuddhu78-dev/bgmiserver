@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: education-license-demo
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: APP_ID
+        value: education-demo
+      - key: CORS_ORIGIN
+        value: '*'

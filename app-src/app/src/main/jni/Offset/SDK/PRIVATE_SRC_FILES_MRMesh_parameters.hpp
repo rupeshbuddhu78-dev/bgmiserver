@@ -1,0 +1,67 @@
+#pragma once
+
+// SDK GENERATE BY TELEGRAM ;- (@PRIVATE_SRC_FILES) (4.6.0 -- 64Bit) DM TO BUY TOOL AVLABLE FOR SELL
+// Telegram:- @PRIVATE_SRC_FILES
+// GEN ONWed Sep 16 07:42:12 2026
+ 
+#include "../SDK.hpp"
+
+namespace SDK
+{
+//---------------------By Tg @PRIVATE_SRC_FILES---------------------------
+//Parameters
+//---------------------By Tg @PRIVATE_SRC_FILES---------------------------
+
+// Function MRMesh.MeshReconstructorBase.StopReconstruction
+struct UMeshReconstructorBase_StopReconstruction_Params
+{
+};
+
+// Function MRMesh.MeshReconstructorBase.StartReconstruction
+struct UMeshReconstructorBase_StartReconstruction_Params
+{
+};
+
+// Function MRMesh.MeshReconstructorBase.PauseReconstruction
+struct UMeshReconstructorBase_PauseReconstruction_Params
+{
+};
+
+// Function MRMesh.MeshReconstructorBase.IsReconstructionStarted
+struct UMeshReconstructorBase_IsReconstructionStarted_Params
+{
+	bool                                               ReturnValue;                                              // (Parm, OutParm, ZeroConstructor, ReturnParm, IsPlainOldData)
+};
+
+// Function MRMesh.MeshReconstructorBase.IsReconstructionPaused
+struct UMeshReconstructorBase_IsReconstructionPaused_Params
+{
+	bool                                               ReturnValue;                                              // (Parm, OutParm, ZeroConstructor, ReturnParm, IsPlainOldData)
+};
+
+// Function MRMesh.MeshReconstructorBase.DisconnectMRMesh
+struct UMeshReconstructorBase_DisconnectMRMesh_Params
+{
+};
+
+// Function MRMesh.MeshReconstructorBase.ConnectMRMesh
+struct UMeshReconstructorBase_ConnectMRMesh_Params
+{
+	class UMRMeshComponent*                            Mesh;                                                     // (Parm, ZeroConstructor, InstancedReference, IsPlainOldData)
+	struct FMRMeshConfiguration                        ReturnValue;                                              // (Parm, OutParm, ReturnParm)
+};
+
+// Function MRMesh.MRMeshComponent.GetReconstructor
+struct UMRMeshComponent_GetReconstructor_Params
+{
+	class UMeshReconstructorBase*                      ReturnValue;                                              // (Parm, OutParm, ZeroConstructor, ReturnParm, IsPlainOldData)
+};
+
+// Function MRMesh.MRMeshComponent.ConnectReconstructor
+struct UMRMeshComponent_ConnectReconstructor_Params
+{
+	class UMeshReconstructorBase*                      Reconstructor;                                            // (Parm, ZeroConstructor, IsPlainOldData)
+};
+
+}
+

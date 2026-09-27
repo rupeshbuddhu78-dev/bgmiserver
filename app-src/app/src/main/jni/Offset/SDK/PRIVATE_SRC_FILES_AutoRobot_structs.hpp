@@ -1,0 +1,35 @@
+#pragma once
+
+// SDK GENERATE BY TELEGRAM ;- (@PRIVATE_SRC_FILES) (4.6.0 -- 64Bit) DM TO BUY TOOL AVLABLE FOR SELL
+// Telegram:- @PRIVATE_SRC_FILES
+// GEN ONWed Sep 16 07:42:18 2026
+ 
+namespace SDK
+{
+//---------------------By Tg @PRIVATE_SRC_FILES---------------------------
+//Enums
+//---------------------By Tg @PRIVATE_SRC_FILES---------------------------
+
+// Enum AutoRobot.EAutoRunTestFlag
+enum class EAutoRunTestFlag : uint8_t
+{
+	Game4Win                       = 0,
+	PVEBattleTest                  = 1,
+	EAutoRunTestFlag_MAX           = 2
+};
+
+
+
+//---------------------By Tg @PRIVATE_SRC_FILES---------------------------
+//Script Structs
+//---------------------By Tg @PRIVATE_SRC_FILES---------------------------
+
+// ScriptStruct AutoRobot.BulletImpactAutoTestData
+// 0x001C
+struct FBulletImpactAutoTestData
+{
+	unsigned char                                      UnknownData00[0x1C];                                      // 0x0000(0x001C) MISSED OFFSET
+};
+
+}
+
