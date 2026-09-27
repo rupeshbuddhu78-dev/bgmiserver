@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: education-license-demo
+    name: bgmiserver
     runtime: node
     plan: free
     buildCommand: npm install
@@ -9,6 +9,8 @@ services:
       - key: ADMIN_TOKEN
         sync: false
       - key: APP_ID
-        value: education-demo
+        value: PUBG
       - key: CORS_ORIGIN
         value: '*'
+      - key: PANEL_LICENSE
+        value: Vm8Lk7Uj2JmsjCPVPVjrLa7zgfx3uz9E
