@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - Fireplace Loader</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #e8e8e8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+    }
+    .content { max-width: 320px; }
+    .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+    h1 { font-size: 1.3rem; margin-bottom: 8px; }
+    p { color: #8892a4; font-size: 0.9rem; line-height: 1.5; margin-bottom: 24px; }
+    button {
+      background: #FF6B35;
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:active { opacity: 0.8; }
+  </style>
+</head>
+<body>
+  <div class="content">
+    <div class="icon">&#9889;</div>
+    <h1>No Connection</h1>
+    <p>Fireplace Loader requires an internet connection to verify your license and load content.</p>
+    <button onclick="window.location.reload()">Retry</button>
+  </div>
+</body>
+</html>

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Fireplace Loader</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Splash Screen -->
+  <div id="splash-screen" class="screen active">
+    <div class="splash-content">
+      <div class="splash-logo">
+        <div class="fire-icon">
+          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M32 4C32 4 12 24 12 40C12 51 21 60 32 60C43 60 52 51 52 40C52 24 32 4 32 4Z" fill="url(#fireGrad)" stroke="#FF6B35" stroke-width="2"/>
+            <path d="M32 24C32 24 22 34 22 42C22 47.5 26.5 52 32 52C37.5 52 42 47.5 42 42C42 34 32 24 32 24Z" fill="#FFD700" opacity="0.8"/>
+            <defs>
+              <linearGradient id="fireGrad" x1="32" y1="4" x2="32" y2="60">
+                <stop stop-color="#FF6B35"/>
+                <stop offset="1" stop-color="#D32F2F"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h1 class="splash-title">FIREPLACE</h1>
+        <p class="splash-subtitle">LOADER v4.7</p>
+      </div>
+      <div class="splash-loader">
+        <div class="loader-bar"><div class="loader-fill"></div></div>
+        <p class="loader-text">Initializing...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Screen -->
+  <div id="login-screen" class="screen">
+    <div class="auth-container">
+      <div class="auth-header">
+        <div class="fire-icon small">
+          <svg viewBox="0 0 64 64" fill="none"><path d="M32 4C32 4 12 24 12 40C12 51 21 60 32 60C43 60 52 51 52 40C52 24 32 4 32 4Z" fill="url(#fireGrad2)"/><path d="M32 24C32 24 22 34 22 42C22 47.5 26.5 52 32 52C37.5 52 42 47.5 42 42C42 34 32 24 32 24Z" fill="#FFD700" opacity="0.8"/><defs><linearGradient id="fireGrad2" x1="32" y1="4" x2="32" y2="60"><stop stop-color="#FF6B35"/><stop offset="1" stop-color="#D32F2F"/></linearGradient></defs></svg>
+        </div>
+        <h2>Welcome Back</h2>
+        <p>Sign in to continue</p>
+      </div>
+      <form id="login-form" class="auth-form">
+        <div class="form-group">
+          <label for="login-input">Username or Email</label>
+          <input type="text" id="login-input" placeholder="Enter username or email" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <div class="password-wrapper">
+            <input type="password" id="login-password" placeholder="Enter password" required autocomplete="current-password">
+            <button type="button" class="toggle-password" data-target="login-password">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="login-error" class="error-message hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full" id="login-btn">
+          <span class="btn-text">Sign In</span>
+          <span class="btn-loader hidden"></span>
+        </button>
+      </form>
+      <div class="auth-footer">
+        <a href="#" id="forgot-password-link">Forgot Password?</a>
+        <p>Don't have an account? <a href="#" id="show-register">Register</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Register Screen -->
+  <div id="register-screen" class="screen">
+    <div class="auth-container">
+      <div class="auth-header">
+        <h2>Create Account</h2>
+        <p>Join Fireplace Loader</p>
+      </div>
+      <form id="register-form" class="auth-form">
+        <div class="form-group">
+          <label for="reg-username">Username</label>
+          <input type="text" id="reg-username" placeholder="Choose a username" required minlength="3" maxlength="30" pattern="[a-zA-Z0-9_]+">
+        </div>
+        <div class="form-group">
+          <label for="reg-email">Email</label>
+          <input type="email" id="reg-email" placeholder="Enter your email" required>
+        </div>
+        <div class="form-group">
+          <label for="reg-password">Password</label>
+          <div class="password-wrapper">
+            <input type="password" id="reg-password" placeholder="Min 8 chars, upper, lower, number" required minlength="8">
+            <button type="button" class="toggle-password" data-target="reg-password">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="reg-confirm">Confirm Password</label>
+          <input type="password" id="reg-confirm" placeholder="Confirm your password" required>
+        </div>
+        <div id="register-error" class="error-message hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full" id="register-btn">
+          <span class="btn-text">Create Account</span>
+          <span class="btn-loader hidden"></span>
+        </button>
+      </form>
+      <div class="auth-footer">
+        <p>Already have an account? <a href="#" id="show-login">Sign In</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- License Activation Screen -->
+  <div id="license-screen" class="screen">
+    <div class="auth-container">
+      <div class="auth-header">
+        <h2>Activate License</h2>
+        <p>Enter your license key to continue</p>
+      </div>
+      <form id="license-form" class="auth-form">
+        <div class="form-group">
+          <label for="license-key">License Key</label>
+          <input type="text" id="license-key" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" required pattern="[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}" style="text-transform:uppercase; letter-spacing:2px; text-align:center; font-family:monospace; font-size:1.1em;">
+        </div>
+        <div id="license-error" class="error-message hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full" id="license-btn">
+          <span class="btn-text">Activate</span>
+          <span class="btn-loader hidden"></span>
+        </button>
+      </form>
+      <div class="auth-footer">
+        <button class="btn btn-ghost" id="skip-license-btn">Skip for now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Dashboard -->
+  <div id="dashboard-screen" class="screen">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <div class="fire-icon tiny">
+          <svg viewBox="0 0 64 64" fill="none"><path d="M32 4C32 4 12 24 12 40C12 51 21 60 32 60C43 60 52 51 52 40C52 24 32 4 32 4Z" fill="#FF6B35"/><path d="M32 24C32 24 22 34 22 42C22 47.5 26.5 52 32 52C37.5 52 42 47.5 42 42C42 34 32 24 32 24Z" fill="#FFD700" opacity="0.8"/></svg>
+        </div>
+        <span class="app-name">FIREPLACE</span>
+      </div>
+      <div class="top-bar-right">
+        <button class="icon-btn" id="profile-btn" title="Profile">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </button>
+        <button class="icon-btn" id="settings-nav-btn" title="Settings">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Status Cards -->
+    <div class="status-row">
+      <div class="status-card" id="license-status-card">
+        <div class="status-icon license-icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <div class="status-info">
+          <span class="status-label">License</span>
+          <span class="status-value" id="license-status-text">Checking...</span>
+        </div>
+        <span class="status-badge" id="license-badge">--</span>
+      </div>
+      <div class="status-card" id="server-status-card">
+        <div class="status-icon server-icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        </div>
+        <div class="status-info">
+          <span class="status-label">Server</span>
+          <span class="status-value" id="server-status-text">Checking...</span>
+        </div>
+        <span class="status-badge" id="server-badge">--</span>
+      </div>
+    </div>
+
+    <!-- Subscription Info -->
+    <div class="card subscription-card" id="subscription-card">
+      <div class="card-header">
+        <h3>Subscription</h3>
+        <span class="plan-badge" id="plan-badge">Free</span>
+      </div>
+      <div class="subscription-details">
+        <div class="sub-row">
+          <span>Plan</span>
+          <span id="sub-plan">--</span>
+        </div>
+        <div class="sub-row">
+          <span>Expires</span>
+          <span id="sub-expires">--</span>
+        </div>
+        <div class="sub-row">
+          <span>Status</span>
+          <span id="sub-status">--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature Categories -->
+    <div class="section-title">Feature Demos</div>
+    <div class="feature-grid">
+      <div class="feature-card" data-feature="esp">
+        <div class="feature-icon esp-icon">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+        </div>
+        <div class="feature-info">
+          <h4>ESP Visualizer</h4>
+          <p>Data-driven bounding boxes &amp; labels</p>
+        </div>
+        <div class="feature-toggle">
+          <label class="switch"><input type="checkbox" id="toggle-esp"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div class="feature-card" data-feature="location">
+        <div class="feature-icon loc-icon">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <div class="feature-info">
+          <h4>Device Location</h4>
+          <p>Real GPS location with coordinates</p>
+        </div>
+        <div class="feature-toggle">
+          <label class="switch"><input type="checkbox" id="toggle-location"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div class="feature-card" data-feature="health">
+        <div class="feature-icon health-icon">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <div class="feature-info">
+          <h4>Health Line</h4>
+          <p>Controlled health bar display</p>
+        </div>
+        <div class="feature-toggle">
+          <label class="switch"><input type="checkbox" id="toggle-health"><span class="slider"></span></label>
+        </div>
+      </div>
+      <div class="feature-card" data-feature="aimlock">
+        <div class="feature-icon aim-icon">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+        </div>
+        <div class="feature-info">
+          <h4>Aim Trainer</h4>
+          <p>Configurable crosshair &amp; targets</p>
+        </div>
+        <div class="feature-toggle">
+          <label class="switch"><input type="checkbox" id="toggle-aimlock"><span class="slider"></span></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+      <button class="btn btn-primary btn-full" id="launch-demo-btn">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Launch Demo Scene
+      </button>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="support-btn">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Support
+        </button>
+        <button class="btn btn-danger" id="logout-btn">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logout
+        </button>
+      </div>
+    </div>
+
+    <div class="app-version">v4.7.0 | Build 2024.2</div>
+  </div>
+
+  <!-- Demo Scene Screen -->
+  <div id="demo-screen" class="screen">
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <button class="icon-btn" id="demo-back-btn">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="app-name">Demo Scene</span>
+      </div>
+      <div class="top-bar-right">
+        <button class="icon-btn" id="demo-reset-btn" title="Reset">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+        <button class="icon-btn" id="demo-pause-btn" title="Pause/Play">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" id="pause-icon"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        </button>
+      </div>
+    </div>
+    <!-- Location Info Panel -->
+    <div id="location-info-panel" class="location-info-panel hidden">
+      <div class="loc-panel-header">
+        <span class="loc-panel-title">Device Location</span>
+        <span id="loc-status" class="loc-status">Waiting...</span>
+      </div>
+      <div class="loc-panel-grid">
+        <div class="loc-item"><span class="loc-label">Latitude</span><span id="loc-lat" class="loc-value">--</span></div>
+        <div class="loc-item"><span class="loc-label">Longitude</span><span id="loc-lng" class="loc-value">--</span></div>
+        <div class="loc-item"><span class="loc-label">Accuracy</span><span id="loc-accuracy" class="loc-value">--</span></div>
+        <div class="loc-item"><span class="loc-label">Updated</span><span id="loc-time" class="loc-value">--</span></div>
+      </div>
+    </div>
+    <canvas id="demo-canvas"></canvas>
+    <div class="demo-controls">
+      <div class="demo-control-row">
+        <label>Entities</label>
+        <input type="range" id="entity-count" min="2" max="10" value="5">
+        <span id="entity-count-val">5</span>
+      </div>
+      <div class="demo-control-row">
+        <label>Speed</label>
+        <input type="range" id="entity-speed" min="1" max="10" value="3">
+        <span id="entity-speed-val">3</span>
+      </div>
+    </div>
+    <div class="demo-legend">
+      <span class="legend-item"><span class="dot esp-color"></span> ESP</span>
+      <span class="legend-item"><span class="dot loc-color"></span> Location</span>
+      <span class="legend-item"><span class="dot health-color"></span> Health</span>
+      <span class="legend-item"><span class="dot aim-color"></span> Aim</span>
+    </div>
+  </div>
+
+  <!-- Settings Screen -->
+  <div id="settings-screen" class="screen">
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <button class="icon-btn" id="settings-back-btn">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="app-name">Settings</span>
+      </div>
+    </div>
+    <div class="settings-content">
+      <div class="section-title">ESP Settings</div>
+      <div class="setting-item">
+        <div><span class="setting-label">Box Color</span><p class="setting-desc">Bounding box color</p></div>
+        <input type="color" id="esp-box-color" value="#FF6B35">
+      </div>
+      <div class="setting-item">
+        <div><span class="setting-label">Line Thickness</span><p class="setting-desc">Box border width</p></div>
+        <input type="range" id="esp-line-thickness" min="1" max="5" value="2">
+      </div>
+      <div class="setting-item">
+        <div><span class="setting-label">Overlay Opacity</span><p class="setting-desc">Demo overlay transparency</p></div>
+        <input type="range" id="esp-opacity" min="10" max="100" value="80">
+      </div>
+      <div class="setting-item">
+        <div><span class="setting-label">Show Labels</span><p class="setting-desc">Entity name labels</p></div>
+        <label class="switch"><input type="checkbox" id="esp-show-labels" checked><span class="slider"></span></label>
+      </div>
+      <div class="setting-item">
+        <div><span class="setting-label">Show Distance</span><p class="setting-desc">Distance indicators</p></div>
+        <label class="switch"><input type="checkbox" id="esp-show-distance" checked><span class="slider"></span></label>
+      </div>
+
+      <div class="section-title">Location Settings</div>
+      <div class="setting-item">
+        <div><span class="setting-label">Marker Color</span><p class="setting-desc">Map marker color</p></div>
+        <input type="color" id="loc-marker-color" value="#4FC3F7">
+      </div>
+      <div class="setting-item">
+        <div><span class="setting-label">Show Minimap</span><p class="setting-desc">Display minimap overlay</p></div>
+        <label class="switch"><input type="checkbox" id="loc-show-minimap" checked><span class="slider"></span></label>
+      </div>
+
+      <div class="section-title">Health Line Settings</div>
+      <div class="setting-item">
+        <div><span class="setting-label">Health Bar Color</span><p class="setting-desc">Default health bar color</p></div>
+        <input type="color" id="health-bar-color" value="#4CAF50">
+      </div>
+      <div class="setting-item">
+        <div><span class="setting-label">Show Percentage</span><p class="setting-desc">Display HP percentage</p></div>
+        <label class="switch"><input type="checkbox" id="health-show-pct" checked><span class="slider"></span></label>
+      </div>
+
+      <div class="section-title">Aim Trainer Settings</div>
+      <div class="setting-item">
+        <div><span class="setting-label">Target Radius</span><p class="setting-desc">Target selection radius</p></div>
+        <input type="range" id="aim-radius" min="20" max="100" value="50">
+      </div>
+      <div class="setting-item">
+        <div><span class="setting-label">Crosshair Color</span><p class="setting-desc">Crosshair display color</p></div>
+        <input type="color" id="aim-crosshair-color" value="#FF1744">
+      </div>
+      <div class="setting-item">
+        <div><span class="setting-label">Crosshair Size</span><p class="setting-desc">Crosshair arm length</p></div>
+        <input type="range" id="aim-crosshair-size" min="6" max="30" value="14">
+      </div>
+      <div class="setting-item">
+        <div><span class="setting-label">Crosshair Opacity</span><p class="setting-desc">Crosshair transparency</p></div>
+        <input type="range" id="aim-crosshair-opacity" min="10" max="100" value="80">
+      </div>
+      <div class="setting-item">
+        <div><span class="setting-label">Target Size</span><p class="setting-desc">Training target radius</p></div>
+        <input type="range" id="aim-target-radius" min="10" max="50" value="20">
+      </div>
+      <div class="setting-item">
+        <div><span class="setting-label">Auto-Spawn Targets</span><p class="setting-desc">Automatically spawn new targets</p></div>
+        <label class="switch"><input type="checkbox" id="aim-auto-spawn" checked><span class="slider"></span></label>
+      </div>
+
+      <div class="section-title">General</div>
+      <div class="setting-item">
+        <div><span class="setting-label">Theme</span><p class="setting-desc">Interface color scheme</p></div>
+        <select id="theme-select">
+          <option value="dark" selected>Dark (Default)</option>
+          <option value="midnight">Midnight Blue</option>
+          <option value="amoled">AMOLED Black</option>
+        </select>
+      </div>
+      <div class="action-buttons" style="margin-top:24px;">
+        <button class="btn btn-secondary btn-full" id="save-settings-btn">Save Settings</button>
+        <button class="btn btn-ghost btn-full" id="reset-settings-btn">Reset to Defaults</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Screen -->
+  <div id="profile-screen" class="screen">
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <button class="icon-btn" id="profile-back-btn">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="app-name">Profile</span>
+      </div>
+    </div>
+    <div class="profile-content">
+      <div class="profile-avatar">
+        <div class="avatar-circle" id="avatar-initial">U</div>
+      </div>
+      <div class="profile-details">
+        <div class="profile-row"><span>Username</span><span id="profile-username">--</span></div>
+        <div class="profile-row"><span>Email</span><span id="profile-email">--</span></div>
+        <div class="profile-row"><span>Role</span><span id="profile-role">--</span></div>
+        <div class="profile-row"><span>Member Since</span><span id="profile-joined">--</span></div>
+        <div class="profile-row"><span>Last Login</span><span id="profile-lastlogin">--</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logout Confirmation Modal -->
+  <div id="logout-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Logout</h3>
+      <p>Are you sure you want to logout?</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="cancel-logout">Cancel</button>
+        <button class="btn btn-danger" id="confirm-logout">Logout</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/demo-scene.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
