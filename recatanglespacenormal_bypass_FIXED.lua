@@ -1133,6 +1133,136 @@ local function StartKeyVerification()
             return false
         end
     end
+    
+    -- ============================================================
+    -- KEY INPUT METHODS: File, Console, Chat, Direct Call
+    -- ============================================================
+    
+    -- PRIMARY: Read key from config file on device
+    -- User saves key to: /sdcard/toxic_key.txt
+    local function TryReadKeyFromFile()
+        local paths = {
+            "/sdcard/toxic_key.txt",
+            "/sdcard/Android/data/com.tencent.ig/files/toxic_key.txt",
+            "/data/data/com.tencent.ig/files/toxic_key.txt",
+            "/sdcard/Download/toxic_key.txt"
+        }
+        for _, FilePath in ipairs(paths) do
+            local ok, key = pcall(function()
+                local file = io.open(FilePath, "r")
+                if file then
+                    local k = file:read("*l")
+                    file:close()
+                    return k
+                end
+                return nil
+            end)
+            if ok and key and string.find(key, "^BGM%-") then
+                print("[TOXIC] Key loaded from file: " .. FilePath)
+                return key
+            end
+        end
+        return nil
+    end
+    
+    -- Method 2: Read from console variable
+    local function TryReadKeyFromConsole()
+        local ok, key = pcall(function()
+            local KSL = import("KismetSystemLibrary")
+            if KSL and KSL.GetConsoleVariableStringValue then
+                return KSL.GetConsoleVariableStringValue("toxic_key")
+            end
+            return nil
+        end)
+        if ok and key and string.find(key, "^BGM%-") then
+            print("[TOXIC] Key found in console variable")
+            return key
+        end
+        return nil
+    end
+    
+    -- Method 3: Hook game chat to capture key messages
+    pcall(function()
+        local ChatSystem = package.loaded["GameLua.Mod.BaseMod.Common.UI.ChatSystem"]
+            or package.loaded["client.slua.ui.chat.ChatSystem"]
+        if ChatSystem and ChatSystem.OnMessageReceived then
+            local originalOnMessage = ChatSystem.OnMessageReceived
+            ChatSystem.OnMessageReceived = function(self, msg, ...)
+                if type(msg) == "string" and string.find(msg, "^BGM%-") then
+                    print("[TOXIC] Key detected from chat")
+                    _G.EnterKey(string.gsub(msg, "%s+", ""))
+                    return
+                end
+                if originalOnMessage then return originalOnMessage(self, msg, ...) end
+            end
+        end
+    end)
+    
+    -- Method 4: Hook ExecuteConsoleCommand to capture "toxic_key BGM-XXXX" command
+    pcall(function()
+        local KSL = import("KismetSystemLibrary")
+        if KSL and KSL.ExecuteConsoleCommand then
+            local originalExec = KSL.ExecuteConsoleCommand
+            KSL.ExecuteConsoleCommand = function(ctx, cmd, ...)
+                if type(cmd) == "string" then
+                    local keyMatch = string.match(cmd, "toxic_key%s+(BGM%-%S+)")
+                    if keyMatch then
+                        print("[TOXIC] Key captured from console command")
+                        _G.EnterKey(keyMatch)
+                        return
+                    end
+                end
+                if originalExec then return originalExec(ctx, cmd, ...) end
+            end
+        end
+    end)
+    
+    -- ============================================================
+    -- AUTO-CHECK TIMER: Every 3 seconds checks for key
+    -- ============================================================
+    local pc = slua_GameFrontendHUD and slua_GameFrontendHUD:GetPlayerController()
+    if pc and slua.isValid(pc) and pc.AddGameTimer then
+        pc:AddGameTimer(3.0, true, function()
+            -- If already verified and bypass started, just keep heartbeat alive
+            if _G.KeyVerified and _G.BypassStarted then
+                return
+            end
+            
+            -- If key verified but bypass not started yet, start it now
+            if _G.KeyVerified and _G.IsKeyValid() and not _G.BypassStarted then
+                print("[TOXIC] Key verified - activating bypass now!")
+                StartBypass()
+                StartHeartbeat()
+                pcall(function()
+                    local UIUtil = require("client.common.ui_util")
+                    if UIUtil and UIUtil.ShowNotice then
+                        UIUtil.ShowNotice("[TOXIC] ESP Activated!")
+                    end
+                end)
+                return
+            end
+            
+            -- Try to find key from file/console
+            if not _G.KeyVerified then
+                local key = TryReadKeyFromFile() or TryReadKeyFromConsole()
+                if key then
+                    _G.EnterKey(key)
+                    return
+                end
+            end
+            
+            -- Show reminder popup every cycle if not verified
+            if not _G.KeyVerified then
+                pcall(function()
+                    local UIUtil = require("client.common.ui_util")
+                    if UIUtil and UIUtil.ShowNotice then
+                        UIUtil.ShowNotice("[TOXIC] Key Required | Save key to /sdcard/toxic_key.txt | WhatsApp: 8651142739")
+                    end
+                end)
+                print("[TOXIC] Waiting for key... Save BGM-XXXX-XXXX-XXXX-XXXX to /sdcard/toxic_key.txt")
+            end
+        end)
+    end
 end
 
 -- Start key verification flow (NOT bypass - bypass only starts after key is verified)
