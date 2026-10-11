@@ -315,7 +315,7 @@ tr:hover { background: #0f1520; }
       </div>
       <div style="margin-bottom: 16px;">
         <label style="color: #888; font-size: 14px; display: block; margin-bottom: 8px;">Custom Key Name (Optional):</label>
-        <input type="text" id="customKeyInput" placeholder="BGM-XXXX-XXXX-XXXX (leave empty for auto-generate)" style="
+        <input type="text" id="customKeyInput" placeholder="Any text (e.g. RUPESH, RUP, BGM-TEST)" style="
           background: #0a0e1a;
           border: 1px solid #1e3a5f;
           border-radius: 6px;
@@ -326,9 +326,9 @@ tr:hover { background: #0f1520; }
           width: 100%;
           text-transform: uppercase;
           letter-spacing: 1px;
-        " maxlength="23">
+        " maxlength="50">
         <div style="color: #666; font-size: 11px; margin-top: 6px;">
-          Format: BGM-XXXX-XXXX-XXXX (letters and numbers only, auto-uppercase)
+          Any text works! Minimum 2 characters. Leave empty for auto-generate.
         </div>
       </div>
       <button class="btn btn-primary" onclick="generateKey()">Generate Key</button>

@@ -40,15 +40,15 @@ function generateKey() {
   return key;
 }
 
-// Validate custom key format
+// Validate custom key format - accept any text (minimum 2 characters)
 function isValidKeyFormat(key) {
   if (!key || typeof key !== 'string') return false;
-  // Format: BGM-XXXX-XXXX-XXXX (where X is alphanumeric)
-  return /^BGM-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(key.toUpperCase());
+  // Accept any text with at least 2 characters (letters, numbers, hyphens)
+  return /^[A-Z0-9\-]{2,50}$/.test(key.toUpperCase());
 }
 
 // API: Generate new key (admin only - requires auth)
-// Now accepts custom key name via 'customKey' parameter
+// Now accepts custom key name via 'customKey' parameter - any text works!
 app.post('/api/generate', adminAuth, (req, res) => {
   const hours = req.body.hours || 25;
   const customKey = req.body.customKey;
@@ -57,13 +57,13 @@ app.post('/api/generate', adminAuth, (req, res) => {
   
   // If custom key provided, validate and use it
   if (customKey) {
-    const upperKey = customKey.toUpperCase();
+    const upperKey = customKey.toUpperCase().trim();
     
-    // Check if it matches the format
+    // Check if it matches the format (any text with 2+ chars)
     if (!isValidKeyFormat(upperKey)) {
       return res.json({ 
         success: false, 
-        message: 'Invalid key format. Use: BGM-XXXX-XXXX-XXXX (letters/numbers only)' 
+        message: 'Invalid key. Use at least 2 characters (letters/numbers only)' 
       });
     }
     
