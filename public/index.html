@@ -186,7 +186,22 @@ tr:hover { background: #0f1520; }
   
   <div class="panel">
     <h2>Generate New Key</h2>
-    <button class="btn btn-primary" onclick="generateKey()">Generate Key (25 Hours)</button>
+    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px;">
+      <label style="color: #888; font-size: 14px;">Hours:</label>
+      <input type="number" id="hoursInput" value="25" min="1" max="720" style="
+        background: #0a0e1a;
+        border: 1px solid #1e3a5f;
+        border-radius: 6px;
+        padding: 8px 12px;
+        color: #00ff88;
+        font-size: 16px;
+        font-weight: bold;
+        width: 100px;
+        text-align: center;
+      ">
+      <span style="color: #666; font-size: 12px;">(1-720 hours)</span>
+    </div>
+    <button class="btn btn-primary" onclick="generateKey()">Generate Key</button>
     <div id="newKey" style="display:none;">
       <div class="key-display" onclick="copyKey()" id="keyText">
         <span id="keyValue"></span>
@@ -244,13 +259,18 @@ function showToast(msg, color) {
 
 async function generateKey() {
   try {
-    const res = await fetch(API + '/api/generate', { method: 'POST' });
+    const hours = parseInt(document.getElementById('hoursInput').value) || 25;
+    const res = await fetch(API + '/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hours: hours })
+    });
     const data = await res.json();
     if (data.success) {
       document.getElementById('keyValue').textContent = data.key;
       document.getElementById('newKey').style.display = 'block';
       loadKeys();
-      showToast('Key generated!');
+      showToast('Key generated for ' + hours + ' hours!');
     }
   } catch (e) {
     showToast('Error: ' + e.message, '#ff4444');

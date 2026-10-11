@@ -34,8 +34,9 @@ function generateDeviceId() {
 
 // API: Generate new key (admin)
 app.post('/api/generate', (req, res) => {
+  const hours = req.body.hours || 25; // Default 25 hours if not specified
   const key = generateKey();
-  const expiresAt = Date.now() + (25 * 60 * 60 * 1000); // 25 hours
+  const expiresAt = Date.now() + (hours * 60 * 60 * 1000);
   
   keys.set(key, {
     key: key,
@@ -48,7 +49,8 @@ app.post('/api/generate', (req, res) => {
   res.json({
     success: true,
     key: key,
-    expiresAt: expiresAt
+    expiresAt: expiresAt,
+    hours: hours
   });
 });
 
