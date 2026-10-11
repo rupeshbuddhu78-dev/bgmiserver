@@ -40,10 +40,47 @@ function generateKey() {
   return key;
 }
 
+// Validate custom key format
+function isValidKeyFormat(key) {
+  if (!key || typeof key !== 'string') return false;
+  // Format: BGM-XXXX-XXXX-XXXX (where X is alphanumeric)
+  return /^BGM-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(key.toUpperCase());
+}
+
 // API: Generate new key (admin only - requires auth)
+// Now accepts custom key name via 'customKey' parameter
 app.post('/api/generate', adminAuth, (req, res) => {
   const hours = req.body.hours || 25;
-  const key = generateKey();
+  const customKey = req.body.customKey;
+  
+  let key;
+  
+  // If custom key provided, validate and use it
+  if (customKey) {
+    const upperKey = customKey.toUpperCase();
+    
+    // Check if it matches the format
+    if (!isValidKeyFormat(upperKey)) {
+      return res.json({ 
+        success: false, 
+        message: 'Invalid key format. Use: BGM-XXXX-XXXX-XXXX (letters/numbers only)' 
+      });
+    }
+    
+    // Check if key already exists
+    if (keys.has(upperKey)) {
+      return res.json({ 
+        success: false, 
+        message: 'Key already exists. Please use a different key.' 
+      });
+    }
+    
+    key = upperKey;
+  } else {
+    // Generate random key
+    key = generateKey();
+  }
+  
   const expiresAt = Date.now() + (hours * 60 * 60 * 1000);
   
   keys.set(key, {
@@ -58,7 +95,8 @@ app.post('/api/generate', adminAuth, (req, res) => {
     success: true,
     key: key,
     expiresAt: expiresAt,
-    hours: hours
+    hours: hours,
+    isCustom: !!customKey
   });
 });
 

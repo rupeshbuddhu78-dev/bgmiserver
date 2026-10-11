@@ -313,6 +313,24 @@ tr:hover { background: #0f1520; }
         ">
         <span style="color: #666; font-size: 12px;">(1-720 hours)</span>
       </div>
+      <div style="margin-bottom: 16px;">
+        <label style="color: #888; font-size: 14px; display: block; margin-bottom: 8px;">Custom Key Name (Optional):</label>
+        <input type="text" id="customKeyInput" placeholder="BGM-XXXX-XXXX-XXXX (leave empty for auto-generate)" style="
+          background: #0a0e1a;
+          border: 1px solid #1e3a5f;
+          border-radius: 6px;
+          padding: 10px 14px;
+          color: #00d4ff;
+          font-size: 14px;
+          font-family: 'Courier New', monospace;
+          width: 100%;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        " maxlength="23">
+        <div style="color: #666; font-size: 11px; margin-top: 6px;">
+          Format: BGM-XXXX-XXXX-XXXX (letters and numbers only, auto-uppercase)
+        </div>
+      </div>
       <button class="btn btn-primary" onclick="generateKey()">Generate Key</button>
       <div id="newKey" style="display:none;">
         <div class="key-display" onclick="copyKey()" id="keyText">
@@ -423,20 +441,29 @@ async function generateKey() {
   if (!adminToken) return showToast('Login first!', '#ff4444');
   try {
     const hours = parseInt(document.getElementById('hoursInput').value) || 25;
+    const customKey = document.getElementById('customKeyInput').value.trim();
+    
+    const body = { hours: hours };
+    if (customKey) {
+      body.customKey = customKey.toUpperCase();
+    }
+    
     const res = await fetch(API + '/api/generate', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'x-admin-token': adminToken
       },
-      body: JSON.stringify({ hours: hours })
+      body: JSON.stringify(body)
     });
     const data = await res.json();
     if (data.success) {
       document.getElementById('keyValue').textContent = data.key;
       document.getElementById('newKey').style.display = 'block';
+      document.getElementById('customKeyInput').value = ''; // Clear input
       loadKeys();
-      showToast('Key generated for ' + hours + ' hours!');
+      const msg = data.isCustom ? 'Custom key created!' : 'Key generated for ' + hours + ' hours!';
+      showToast(msg);
     } else {
       showToast(data.message || 'Error', '#ff4444');
     }
