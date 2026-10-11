@@ -780,11 +780,11 @@ end
 -- ============================================================
 
 local SERVER_URL = "https://bgmiserver-wcq4.onrender.com"
-_g.KeyVerified = false
-_g.KeyExpiry = 0
-_g.DeviceId = nil
-_g.ActiveKey = nil
-_g.BypassStarted = false
+_G.KeyVerified = false
+_G.KeyExpiry = 0
+_G.DeviceId = nil
+_G.ActiveKey = nil
+_G.BypassStarted = false
 
 -- Generate persistent device ID based on hardware info
 local function GenerateDeviceId()
