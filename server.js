@@ -101,8 +101,19 @@ app.post('/api/generate', adminAuth, (req, res) => {
 });
 
 // API: Verify key (client - no auth needed)
+// Supports both GET (for game Http module) and POST
+app.get('/api/verify', (req, res) => {
+  const key = req.query.key;
+  const deviceId = req.query.deviceId;
+  verifyKeyLogic(key, deviceId, res);
+});
+
 app.post('/api/verify', (req, res) => {
   const { key, deviceId } = req.body;
+  verifyKeyLogic(key, deviceId, res);
+});
+
+function verifyKeyLogic(key, deviceId, res) {
   
   if (!key || !deviceId) {
     return res.json({ success: false, message: 'Missing key or deviceId' });
@@ -154,7 +165,7 @@ app.post('/api/verify', (req, res) => {
     expiresAt: keyData.expiresAt,
     timeLeft: timeLeft
   });
-});
+}
 
 // API: Heartbeat (client - no auth needed)
 app.post('/api/heartbeat', (req, res) => {
