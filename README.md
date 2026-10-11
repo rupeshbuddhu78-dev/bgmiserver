@@ -15,7 +15,7 @@ Key generation and verification server for BGMi ESP system.
 ### POST /api/generate
 Generate a new key
 ```bash
-curl -X POST https://bgmiserver-tev5.onrender.com/api/generate
+curl -X POST https://bgmiserver-wcq4.onrender.com/api/generate
 ```
 
 ### POST /api/verify
