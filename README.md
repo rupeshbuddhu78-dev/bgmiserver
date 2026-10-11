@@ -1,83 +1,89 @@
 # BGMi Key Server
 
-Key generation and verification server for BGMi ESP system.
+Key generation and verification server for the BGMi ESP system.
 
 ## Features
 
-- Generate time-limited keys (25 hours)
-- Track connected devices per key
-- Automatic key expiration
-- Heartbeat system to keep sessions alive
-- Admin panel to manage keys
+- Generate time-limited keys (default 25 hours)
+- Configure the maximum devices allowed per key (for example 100 or 500)
+- Persistent key, device-session and configuration storage in `data/*.json`
+- Heartbeat system to keep active sessions alive
+- Admin panel with login session retained in the browser for 30 days
+- Admin panel to generate, enable, disable and delete keys
 
-## API Endpoints
+## Device limit configuration
 
-### POST /api/generate
-Generate a new key
-```bash
-curl -X POST https://bgmiserver-wcq4.onrender.com/api/generate
+The default limit is `1`. It can be changed in either of these ways:
+
+1. **Admin panel:** log in, enter the desired number in **Max devices per key**, and click **Save Limit**.
+2. **Environment variable:** set `MAX_DEVICES_PER_KEY=500` before starting the server. This takes precedence over `data/config.json`.
+
+The admin panel stores the signed login token in browser `localStorage`, so a page refresh or server restart does not require login again. Clicking **Logout** removes it.
+
+## Persistent data
+
+The server automatically creates this directory on startup:
+
+```text
+data/
+  config.json   # current maxDevicesPerKey
+  keys.json     # generated keys and their registered device IDs
+  devices.json  # device sessions and last heartbeat timestamps
 ```
 
-### POST /api/verify
-Verify a key
+These runtime JSON files are intentionally ignored by Git so secrets and live customer data are not committed. The `data/.gitkeep` file keeps the directory in the repository.
+
+## API endpoints
+
+### POST `/api/generate` (admin)
+
 ```bash
-curl -X POST https://bgmiserver-tev5.onrender.com/api/verify \
+curl -X POST http://localhost:3000/api/generate \
   -H "Content-Type: application/json" \
-  -d '{"key":"BGM-XXXX-XXXX-XXXX-XXXX","deviceId":"unique_device_id"}'
+  -H "x-admin-token: ADMIN_TOKEN" \
+  -d '{"hours":25,"customKey":"BGM-TEST"}'
 ```
 
-### POST /api/heartbeat
-Send heartbeat to keep session alive
+### POST `/api/verify` or GET `/api/verify` (client)
+
 ```bash
-curl -X POST https://bgmiserver-tev5.onrender.com/api/heartbeat \
+curl -X POST http://localhost:3000/api/verify \
   -H "Content-Type: application/json" \
-  -d '{"key":"BGM-XXXX-XXXX-XXXX-XXXX","deviceId":"unique_device_id"}'
+  -d '{"key":"BGM-TEST","deviceId":"unique_device_id"}'
 ```
 
-### GET /api/keys
-Get all keys (admin panel)
-```bash
-curl https://bgmiserver-tev5.onrender.com/api/keys
-```
+### POST `/api/heartbeat` (client)
 
-### POST /api/disable
-Disable a key
 ```bash
-curl -X POST https://bgmiserver-tev5.onrender.com/api/disable \
+curl -X POST http://localhost:3000/api/heartbeat \
   -H "Content-Type: application/json" \
-  -d '{"key":"BGM-XXXX-XXXX-XXXX-XXXX"}'
+  -d '{"key":"BGM-TEST","deviceId":"unique_device_id"}'
 ```
 
-### POST /api/delete
-Delete a key
+### POST `/api/admin/login`
+
+Send `{ "password": "..." }` to receive a signed admin token. The default password is only for development; set `ADMIN_PASSWORD` in production.
+
+### GET/POST `/api/settings` (admin)
+
+Read or update the global device limit:
+
 ```bash
-curl -X POST https://bgmiserver-tev5.onrender.com/api/delete \
+curl -X POST http://localhost:3000/api/settings \
   -H "Content-Type: application/json" \
-  -d '{"key":"BGM-XXXX-XXXX-XXXX-XXXX"}'
+  -H "x-admin-token: ADMIN_TOKEN" \
+  -d '{"maxDevicesPerKey":500}'
 ```
 
-## Admin Panel
+Other admin endpoints are `/api/keys`, `/api/disable`, `/api/enable` and `/api/delete`.
 
-Visit the root URL to access the admin panel:
-```
-https://bgmiserver-tev5.onrender.com
-```
+## Run locally
 
-## Deployment
-
-The server is deployed on Render at:
-```
-https://bgmiserver-tev5.onrender.com
+```bash
+npm install
+ADMIN_PASSWORD='change-this-password' npm start
 ```
 
-## Lua Integration
+## Lua integration
 
-The Lua file includes key verification that:
-1. Checks key validity before enabling ESP
-2. Sends heartbeat every 5 minutes
-3. Disables features when key expires
-
-Server URL configured in Lua:
-```lua
-local SERVER_URL = "https://bgmiserver-tev5.onrender.com"
-```
+The Lua file includes key verification and heartbeat calls. Update its `SERVER_URL` to the deployed server URL when deploying.

@@ -1,299 +1,277 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+const fs = require('fs');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Admin password - change this! Set via env var ADMIN_PASSWORD or use default
+const DATA_DIR = path.join(__dirname, 'data');
+const KEYS_FILE = path.join(DATA_DIR, 'keys.json');
+const DEVICES_FILE = path.join(DATA_DIR, 'devices.json');
+const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'BGM@Admin2024!';
-const MAX_DEVICES_PER_KEY = 1; // Only 1 device per key
+const TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET || ADMIN_PASSWORD;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// In-memory storage
+function ensureDataDir() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function readJson(file, fallback) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.error(`Could not read ${file}:`, error.message);
+    return fallback;
+  }
+}
+
+function writeJson(file, value) {
+  const tempFile = `${file}.tmp`;
+  fs.writeFileSync(tempFile, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  fs.renameSync(tempFile, file);
+}
+
+function positiveInteger(value, fallback) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : fallback;
+}
+
+ensureDataDir();
+const storedConfig = readJson(CONFIG_FILE, {});
+let maxDevicesPerKey = positiveInteger(
+  process.env.MAX_DEVICES_PER_KEY,
+  positiveInteger(storedConfig.maxDevicesPerKey, 1)
+);
+
+const storedKeys = readJson(KEYS_FILE, []);
 const keys = new Map();
-const sessions = new Map();
+for (const item of Array.isArray(storedKeys) ? storedKeys : []) {
+  if (!item || !item.key) continue;
+  keys.set(item.key, {
+    key: item.key,
+    createdAt: item.createdAt,
+    expiresAt: item.expiresAt,
+    devices: new Set(Array.isArray(item.devices) ? item.devices : []),
+    active: item.active !== false
+  });
+}
 
-// Admin authentication middleware
+const storedDevices = readJson(DEVICES_FILE, []);
+const sessions = new Map();
+for (const item of Array.isArray(storedDevices) ? storedDevices : []) {
+  if (item && item.deviceId && item.key && keys.has(item.key)) {
+    sessions.set(item.deviceId, {
+      key: item.key,
+      lastHeartbeat: item.lastHeartbeat
+    });
+  }
+}
+
+function saveData() {
+  writeJson(KEYS_FILE, Array.from(keys.values()).map(data => ({
+    key: data.key,
+    createdAt: data.createdAt,
+    expiresAt: data.expiresAt,
+    devices: Array.from(data.devices),
+    active: data.active
+  })));
+  writeJson(DEVICES_FILE, Array.from(sessions.entries()).map(([deviceId, session]) => ({
+    deviceId,
+    key: session.key,
+    lastHeartbeat: session.lastHeartbeat
+  })));
+  writeJson(CONFIG_FILE, { maxDevicesPerKey });
+}
+
+saveData();
+
+function createAdminToken() {
+  const payload = Buffer.from(JSON.stringify({
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function isValidAdminToken(token) {
+  if (!token || typeof token !== 'string') return false;
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) return false;
+  const expected = crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest('base64url');
+  if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return false;
+  try {
+    return JSON.parse(Buffer.from(payload, 'base64url').toString()).exp > Date.now();
+  } catch (_) {
+    return false;
+  }
+}
+
 function adminAuth(req, res, next) {
   const token = req.headers['x-admin-token'] || req.body.adminToken;
-  if (token !== ADMIN_PASSWORD) {
-    return res.status(401).json({ success: false, message: 'Unauthorized - Invalid admin token' });
+  if (!isValidAdminToken(token)) {
+    return res.status(401).json({ success: false, message: 'Unauthorized - Invalid or expired admin token' });
   }
   next();
 }
 
-// Generate random key
 function generateKey() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let key = 'BGM-';
   for (let i = 0; i < 4; i++) {
-    for (let j = 0; j < 4; j++) {
-      key += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    for (let j = 0; j < 4; j++) key += chars.charAt(Math.floor(Math.random() * chars.length));
     if (i < 3) key += '-';
   }
   return key;
 }
 
-// Validate custom key format - accept any text (minimum 2 characters)
 function isValidKeyFormat(key) {
-  if (!key || typeof key !== 'string') return false;
-  // Accept any text with at least 2 characters (letters, numbers, hyphens)
-  return /^[A-Z0-9\-]{2,50}$/.test(key.toUpperCase());
+  return typeof key === 'string' && /^[A-Z0-9\-]{2,50}$/.test(key.toUpperCase());
 }
 
-// API: Generate new key (admin only - requires auth)
-// Now accepts custom key name via 'customKey' parameter - any text works!
+function getActiveDevices(keyData, now = Date.now()) {
+  return Array.from(keyData.devices).filter(deviceId => {
+    const session = sessions.get(deviceId);
+    return session && session.key === keyData.key && now - session.lastHeartbeat < SESSION_TIMEOUT_MS;
+  });
+}
+
 app.post('/api/generate', adminAuth, (req, res) => {
-  const hours = req.body.hours || 25;
+  const hours = positiveInteger(req.body.hours, 25);
   const customKey = req.body.customKey;
-  
   let key;
-  
-  // If custom key provided, validate and use it
   if (customKey) {
     const upperKey = customKey.toUpperCase().trim();
-    
-    // Check if it matches the format (any text with 2+ chars)
     if (!isValidKeyFormat(upperKey)) {
-      return res.json({ 
-        success: false, 
-        message: 'Invalid key. Use at least 2 characters (letters/numbers only)' 
-      });
+      return res.json({ success: false, message: 'Invalid key. Use at least 2 characters (letters/numbers/hyphens only)' });
     }
-    
-    // Check if key already exists
-    if (keys.has(upperKey)) {
-      return res.json({ 
-        success: false, 
-        message: 'Key already exists. Please use a different key.' 
-      });
-    }
-    
+    if (keys.has(upperKey)) return res.json({ success: false, message: 'Key already exists. Please use a different key.' });
     key = upperKey;
   } else {
-    // Generate random key
-    key = generateKey();
+    do { key = generateKey(); } while (keys.has(key));
   }
-  
-  const expiresAt = Date.now() + (hours * 60 * 60 * 1000);
-  
-  keys.set(key, {
-    key: key,
-    createdAt: Date.now(),
-    expiresAt: expiresAt,
-    devices: new Set(),
-    active: true
-  });
-  
-  res.json({
-    success: true,
-    key: key,
-    expiresAt: expiresAt,
-    hours: hours,
-    isCustom: !!customKey
-  });
-});
 
-// API: Verify key (client - no auth needed)
-// Supports both GET (for game Http module) and POST
-app.get('/api/verify', (req, res) => {
-  const key = req.query.key;
-  const deviceId = req.query.deviceId;
-  verifyKeyLogic(key, deviceId, res);
-});
-
-app.post('/api/verify', (req, res) => {
-  const { key, deviceId } = req.body;
-  verifyKeyLogic(key, deviceId, res);
+  const now = Date.now();
+  keys.set(key, { key, createdAt: now, expiresAt: now + hours * 60 * 60 * 1000, devices: new Set(), active: true });
+  saveData();
+  res.json({ success: true, key, expiresAt: now + hours * 60 * 60 * 1000, hours, isCustom: !!customKey });
 });
 
 function verifyKeyLogic(key, deviceId, res) {
-  
-  if (!key || !deviceId) {
-    return res.json({ success: false, message: 'Missing key or deviceId' });
-  }
-  
+  if (!key || !deviceId) return res.json({ success: false, message: 'Missing key or deviceId' });
   const keyData = keys.get(key);
-  
-  if (!keyData) {
-    return res.json({ success: false, message: 'Invalid key - not found' });
+  if (!keyData) return res.json({ success: false, message: 'Invalid key - not found' });
+  if (!keyData.active) return res.json({ success: false, message: 'Key has been disabled by admin' });
+  if (Date.now() > keyData.expiresAt) return res.json({ success: false, message: 'Key has expired' });
+
+  const activeDevices = getActiveDevices(keyData);
+  const existingSession = sessions.get(deviceId);
+  const alreadyRegistered = keyData.devices.has(deviceId) && existingSession && existingSession.key === key;
+  if (!alreadyRegistered && activeDevices.length >= maxDevicesPerKey) {
+    return res.json({ success: false, message: `Device limit reached (${maxDevicesPerKey} device${maxDevicesPerKey === 1 ? '' : 's'} max).` });
   }
-  
-  if (!keyData.active) {
-    return res.json({ success: false, message: 'Key has been disabled by admin' });
-  }
-  
-  if (Date.now() > keyData.expiresAt) {
-    return res.json({ success: false, message: 'Key has expired' });
-  }
-  
-  // Check device limit
-  const now = Date.now();
-  const activeDevices = Array.from(keyData.devices).filter(dId => {
-    const session = sessions.get(dId);
-    return session && (now - session.lastHeartbeat) < 10 * 60 * 1000;
-  });
-  
-  // If this device is not already registered and we're at the limit
-  if (!keyData.devices.has(deviceId) && activeDevices.length >= MAX_DEVICES_PER_KEY) {
-    return res.json({ 
-      success: false, 
-      message: 'Device limit reached (' + MAX_DEVICES_PER_KEY + ' device max). Key is already in use on another device.' 
-    });
-  }
-  
-  // Add device to key
+
   keyData.devices.add(deviceId);
-  
-  // Create/update session
-  sessions.set(deviceId, {
-    key: key,
-    lastHeartbeat: Date.now()
-  });
-  
-  const timeLeft = keyData.expiresAt - Date.now();
-  
-  res.json({
-    success: true,
-    message: 'Key verified',
-    expiresAt: keyData.expiresAt,
-    timeLeft: timeLeft
-  });
+  sessions.set(deviceId, { key, lastHeartbeat: Date.now() });
+  saveData();
+  res.json({ success: true, message: 'Key verified', expiresAt: keyData.expiresAt, timeLeft: keyData.expiresAt - Date.now() });
 }
 
-// API: Heartbeat (client - no auth needed)
+app.get('/api/verify', (req, res) => verifyKeyLogic(req.query.key, req.query.deviceId, res));
+app.post('/api/verify', (req, res) => verifyKeyLogic(req.body.key, req.body.deviceId, res));
+
 app.post('/api/heartbeat', (req, res) => {
   const { key, deviceId } = req.body;
-  
-  if (!key || !deviceId) {
-    return res.json({ success: false, message: 'Missing data' });
-  }
-  
   const keyData = keys.get(key);
-  
-  if (!keyData || !keyData.active || Date.now() > keyData.expiresAt) {
+  const session = sessions.get(deviceId);
+  if (!key || !deviceId || !keyData || !keyData.active || Date.now() > keyData.expiresAt) {
     return res.json({ success: false, message: 'Key invalid or expired' });
   }
-  
-  // Verify this device is registered to this key
-  if (!keyData.devices.has(deviceId)) {
+  if (!keyData.devices.has(deviceId) || !session || session.key !== key) {
     return res.json({ success: false, message: 'Device not registered for this key' });
   }
-  
-  // Update session
-  const session = sessions.get(deviceId);
-  if (session && session.key === key) {
-    session.lastHeartbeat = Date.now();
-  }
-  
-  const timeLeft = keyData.expiresAt - Date.now();
-  
-  res.json({
-    success: true,
-    timeLeft: timeLeft
-  });
+  session.lastHeartbeat = Date.now();
+  saveData();
+  res.json({ success: true, timeLeft: keyData.expiresAt - Date.now() });
 });
 
-// API: Admin login
 app.post('/api/admin/login', (req, res) => {
-  const { password } = req.body;
-  if (password === ADMIN_PASSWORD) {
-    res.json({ success: true, token: ADMIN_PASSWORD });
-  } else {
-    res.json({ success: false, message: 'Wrong password' });
-  }
+  if (req.body.password === ADMIN_PASSWORD) return res.json({ success: true, token: createAdminToken() });
+  res.json({ success: false, message: 'Wrong password' });
 });
 
-// API: Get all keys (admin only)
+app.get('/api/settings', adminAuth, (req, res) => res.json({ maxDevicesPerKey }));
+
+app.post('/api/settings', adminAuth, (req, res) => {
+  const requestedLimit = positiveInteger(req.body.maxDevicesPerKey, 0);
+  if (!requestedLimit || requestedLimit > 100000) {
+    return res.status(400).json({ success: false, message: 'maxDevicesPerKey must be a whole number from 1 to 100000' });
+  }
+  maxDevicesPerKey = requestedLimit;
+  saveData();
+  res.json({ success: true, maxDevicesPerKey });
+});
+
 app.get('/api/keys', adminAuth, (req, res) => {
   const now = Date.now();
-  const keyList = [];
-  
-  keys.forEach((data, key) => {
-    const activeDevices = Array.from(data.devices).filter(deviceId => {
-      const session = sessions.get(deviceId);
-      return session && (now - session.lastHeartbeat) < 10 * 60 * 1000;
-    });
-    
-    keyList.push({
-      key: data.key,
-      createdAt: data.createdAt,
-      expiresAt: data.expiresAt,
-      active: data.active,
-      expired: now > data.expiresAt,
-      deviceCount: activeDevices.length,
-      maxDevices: MAX_DEVICES_PER_KEY,
-      timeLeft: Math.max(0, data.expiresAt - now)
-    });
-  });
-  
-  keyList.sort((a, b) => b.createdAt - a.createdAt);
-  
+  const keyList = Array.from(keys.values()).map(data => ({
+    key: data.key,
+    createdAt: data.createdAt,
+    expiresAt: data.expiresAt,
+    active: data.active,
+    expired: now > data.expiresAt,
+    deviceCount: getActiveDevices(data, now).length,
+    maxDevices: maxDevicesPerKey,
+    timeLeft: Math.max(0, data.expiresAt - now)
+  })).sort((a, b) => b.createdAt - a.createdAt);
   res.json(keyList);
 });
 
-// API: Disable key (admin only)
 app.post('/api/disable', adminAuth, (req, res) => {
-  const { key } = req.body;
-  
-  const keyData = keys.get(key);
-  if (keyData) {
-    keyData.active = false;
-    res.json({ success: true, message: 'Key disabled' });
-  } else {
-    res.json({ success: false, message: 'Key not found' });
-  }
+  const keyData = keys.get(req.body.key);
+  if (!keyData) return res.json({ success: false, message: 'Key not found' });
+  keyData.active = false;
+  saveData();
+  res.json({ success: true, message: 'Key disabled' });
 });
 
-// API: Enable key (admin only)
 app.post('/api/enable', adminAuth, (req, res) => {
-  const { key } = req.body;
-  
-  const keyData = keys.get(key);
-  if (keyData) {
-    keyData.active = true;
-    res.json({ success: true, message: 'Key enabled' });
-  } else {
-    res.json({ success: false, message: 'Key not found' });
-  }
+  const keyData = keys.get(req.body.key);
+  if (!keyData) return res.json({ success: false, message: 'Key not found' });
+  keyData.active = true;
+  saveData();
+  res.json({ success: true, message: 'Key enabled' });
 });
 
-// API: Delete key (admin only)
 app.post('/api/delete', adminAuth, (req, res) => {
-  const { key } = req.body;
-  
-  if (keys.has(key)) {
-    keys.delete(key);
-    res.json({ success: true, message: 'Key deleted' });
-  } else {
-    res.json({ success: false, message: 'Key not found' });
-  }
+  if (!keys.has(req.body.key)) return res.json({ success: false, message: 'Key not found' });
+  keys.delete(req.body.key);
+  for (const [deviceId, session] of sessions) if (session.key === req.body.key) sessions.delete(deviceId);
+  saveData();
+  res.json({ success: true, message: 'Key deleted' });
 });
 
-// Cleanup inactive sessions every minute
 setInterval(() => {
   const now = Date.now();
-  
-  sessions.forEach((session, deviceId) => {
-    if (now - session.lastHeartbeat > 10 * 60 * 1000) {
+  let changed = false;
+  for (const [deviceId, session] of sessions) {
+    if (now - session.lastHeartbeat > SESSION_TIMEOUT_MS || !keys.has(session.key)) {
       sessions.delete(deviceId);
-      
       const keyData = keys.get(session.key);
-      if (keyData) {
-        keyData.devices.delete(deviceId);
-      }
+      if (keyData) keyData.devices.delete(deviceId);
+      changed = true;
     }
-  });
+  }
+  if (changed) saveData();
 }, 60 * 1000);
 
 app.listen(PORT, () => {
   console.log(`BGMi Key Server running on port ${PORT}`);
-  console.log(`Admin password: ${ADMIN_PASSWORD.substring(0, 3)}***`);
-  console.log(`Max devices per key: ${MAX_DEVICES_PER_KEY}`);
+  console.log(`Max devices per key: ${maxDevicesPerKey}`);
+  console.log(`JSON data directory: ${DATA_DIR}`);
 });
