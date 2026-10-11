@@ -129,6 +129,55 @@ tr:hover { background: #0f1520; }
   z-index: 999;
 }
 .toast.show { transform: translateX(0); }
+.contact-panel {
+  background: linear-gradient(135deg, #111827, #1a2332);
+  border: 1px solid #25D366;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.contact-panel h2 {
+  color: #25D366;
+  font-size: 18px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #25D366;
+  padding-bottom: 8px;
+}
+.contact-info {
+  font-size: 16px;
+  margin: 12px 0;
+  color: #e0e0e0;
+}
+.contact-info strong {
+  color: #25D366;
+}
+.whatsapp-btn {
+  display: inline-block;
+  background: linear-gradient(135deg, #25D366, #128C7E);
+  color: #fff;
+  padding: 12px 30px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 16px;
+  margin-top: 12px;
+  transition: all 0.2s;
+}
+.whatsapp-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(37, 211, 102, 0.4);
+}
+.owner-tag {
+  display: inline-block;
+  background: #25D366;
+  color: #000;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 8px;
+}
 </style>
 </head>
 <body>
@@ -163,6 +212,20 @@ tr:hover { background: #0f1520; }
       </tbody>
     </table>
     <div class="refresh-info">Auto-refreshes every 10 seconds</div>
+  </div>
+
+  <div class="contact-panel">
+    <h2>Contact Owner</h2>
+    <div class="contact-info">
+      <strong>WhatsApp:</strong> 8651142739
+      <span class="owner-tag">Real Owner</span>
+    </div>
+    <div class="contact-info" style="font-size: 14px; color: #888; margin-top: 8px;">
+      For key purchase, support, or any queries
+    </div>
+    <a href="https://wa.me/918651142739" target="_blank" class="whatsapp-btn">
+      💬 Chat on WhatsApp
+    </a>
   </div>
 </div>
 
