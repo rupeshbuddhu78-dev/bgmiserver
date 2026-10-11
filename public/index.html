@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BGMi Key Server</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background: #0a0e1a;
+  color: #e0e0e0;
+  min-height: 100vh;
+  padding: 20px;
+}
+.container { max-width: 900px; margin: 0 auto; }
+h1 {
+  text-align: center;
+  color: #00d4ff;
+  font-size: 28px;
+  margin-bottom: 30px;
+  text-shadow: 0 0 20px rgba(0,212,255,0.3);
+}
+.panel {
+  background: #111827;
+  border: 1px solid #1e3a5f;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.panel h2 {
+  color: #00d4ff;
+  font-size: 18px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #1e3a5f;
+  padding-bottom: 8px;
+}
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-primary {
+  background: linear-gradient(135deg, #00d4ff, #0099cc);
+  color: #000;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,212,255,0.4); }
+.btn-danger {
+  background: linear-gradient(135deg, #ff4444, #cc0000);
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.btn-danger:hover { transform: translateY(-1px); }
+.btn-warn {
+  background: linear-gradient(135deg, #ff8800, #cc6600);
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.btn-warn:hover { transform: translateY(-1px); }
+.key-display {
+  background: #0a0e1a;
+  border: 2px solid #00d4ff;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  font-size: 22px;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  color: #00ff88;
+  letter-spacing: 2px;
+  margin: 12px 0;
+  cursor: pointer;
+  position: relative;
+}
+.key-display:hover { background: #0f1520; }
+.key-display .copy-hint {
+  font-size: 11px;
+  color: #666;
+  font-family: 'Segoe UI', sans-serif;
+  font-weight: normal;
+  letter-spacing: 0;
+  margin-top: 6px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+th, td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #1e3a5f;
+  font-size: 13px;
+}
+th {
+  color: #00d4ff;
+  font-weight: 600;
+  background: #0a0e1a;
+}
+tr:hover { background: #0f1520; }
+.status-active { color: #00ff88; font-weight: bold; }
+.status-expired { color: #ff4444; font-weight: bold; }
+.status-disabled { color: #ff8800; font-weight: bold; }
+.actions { display: flex; gap: 6px; }
+.empty-msg { text-align: center; color: #666; padding: 20px; }
+.refresh-info {
+  text-align: center;
+  color: #666;
+  font-size: 12px;
+  margin-top: 10px;
+}
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #00ff88;
+  color: #000;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  transform: translateX(400px);
+  transition: transform 0.3s;
+  z-index: 999;
+}
+.toast.show { transform: translateX(0); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>BGMi Key Server</h1>
+  
+  <div class="panel">
+    <h2>Generate New Key</h2>
+    <button class="btn btn-primary" onclick="generateKey()">Generate Key (25 Hours)</button>
+    <div id="newKey" style="display:none;">
+      <div class="key-display" onclick="copyKey()" id="keyText">
+        <span id="keyValue"></span>
+        <div class="copy-hint">Click to copy</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Active Keys</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>Devices</th>
+          <th>Time Left</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="keysTable">
+        <tr><td colspan="5" class="empty-msg">Loading...</td></tr>
+      </tbody>
+    </table>
+    <div class="refresh-info">Auto-refreshes every 10 seconds</div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+const API = window.location.origin;
+
+function showToast(msg, color) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color || '#00ff88';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+async function generateKey() {
+  try {
+    const res = await fetch(API + '/api/generate', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('keyValue').textContent = data.key;
+      document.getElementById('newKey').style.display = 'block';
+      loadKeys();
+      showToast('Key generated!');
+    }
+  } catch (e) {
+    showToast('Error: ' + e.message, '#ff4444');
+  }
+}
+
+function copyKey() {
+  const key = document.getElementById('keyValue').textContent;
+  navigator.clipboard.writeText(key).then(() => {
+    showToast('Key copied!');
+  });
+}
+
+function formatTime(ms) {
+  if (ms <= 0) return 'Expired';
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours > 0) return hours + 'h ' + mins + 'm';
+  return mins + 'm';
+}
+
+async function loadKeys() {
+  try {
+    const res = await fetch(API + '/api/keys');
+    const keys = await res.json();
+    const tbody = document.getElementById('keysTable');
+    
+    if (keys.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-msg">No keys generated yet</td></tr>';
+      return;
+    }
+    
+    tbody.innerHTML = keys.map(k => {
+      let status = '<span class="status-active">Active</span>';
+      if (!k.active) status = '<span class="status-disabled">Disabled</span>';
+      else if (k.expired) status = '<span class="status-expired">Expired</span>';
+      
+      return `<tr>
+        <td style="font-family:monospace;color:#00ff88;">${k.key}</td>
+        <td>${k.deviceCount}</td>
+        <td>${formatTime(k.timeLeft)}</td>
+        <td>${status}</td>
+        <td class="actions">
+          ${k.active ? `<button class="btn btn-warn" onclick="disableKey('${k.key}')">Disable</button>` : ''}
+          <button class="btn btn-danger" onclick="deleteKey('${k.key}')">Delete</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    console.error('Load keys error:', e);
+  }
+}
+
+async function disableKey(key) {
+  if (!confirm('Disable this key?')) return;
+  try {
+    await fetch(API + '/api/disable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key })
+    });
+    loadKeys();
+    showToast('Key disabled!');
+  } catch (e) {
+    showToast('Error!', '#ff4444');
+  }
+}
+
+async function deleteKey(key) {
+  if (!confirm('Delete this key permanently?')) return;
+  try {
+    await fetch(API + '/api/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key })
+    });
+    loadKeys();
+    showToast('Key deleted!');
+  } catch (e) {
+    showToast('Error!', '#ff4444');
+  }
+}
+
+loadKeys();
+setInterval(loadKeys, 10000);
+</script>
+</body>
+</html>
