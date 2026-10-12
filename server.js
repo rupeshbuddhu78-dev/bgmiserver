@@ -1,95 +1,78 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
-const fs = require('fs');
 const path = require('path');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_DIR = path.join(__dirname, 'data');
-const KEYS_FILE = path.join(DATA_DIR, 'keys.json');
-const DEVICES_FILE = path.join(DATA_DIR, 'devices.json');
-const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'BGM@Admin2024!';
 const TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET || ADMIN_PASSWORD;
 
+// MongoDB connection - Direct hardcoded (no env variables needed)
+const MONGODB_URI = 'mongodb+srv://rupeshdatabase:rupeshsonam@cluster0.xo0d0ot.mongodb.net/bgmiserver?retryWrites=true&w=majority';
+const DB_NAME = 'bgmiserver';
+
+let db;
+let keysCollection;
+let devicesCollection;
+let configCollection;
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-function readJson(file, fallback) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (error) {
-    if (error.code !== 'ENOENT') console.error(`Could not read ${file}:`, error.message);
-    return fallback;
-  }
-}
-
-function writeJson(file, value) {
-  const tempFile = `${file}.tmp`;
-  fs.writeFileSync(tempFile, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  fs.renameSync(tempFile, file);
-}
 
 function positiveInteger(value, fallback) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : fallback;
 }
 
-ensureDataDir();
-const storedConfig = readJson(CONFIG_FILE, {});
-let maxDevicesPerKey = positiveInteger(
-  process.env.MAX_DEVICES_PER_KEY,
-  positiveInteger(storedConfig.maxDevicesPerKey, 1)
-);
-
-const storedKeys = readJson(KEYS_FILE, []);
-const keys = new Map();
-for (const item of Array.isArray(storedKeys) ? storedKeys : []) {
-  if (!item || !item.key) continue;
-  keys.set(item.key, {
-    key: item.key,
-    createdAt: item.createdAt,
-    expiresAt: item.expiresAt,
-    devices: new Set(Array.isArray(item.devices) ? item.devices : []),
-    active: item.active !== false
-  });
-}
-
-const storedDevices = readJson(DEVICES_FILE, []);
-const sessions = new Map();
-for (const item of Array.isArray(storedDevices) ? storedDevices : []) {
-  if (item && item.deviceId && item.key && keys.has(item.key)) {
-    sessions.set(item.deviceId, {
-      key: item.key,
-      lastHeartbeat: item.lastHeartbeat
-    });
+// MongoDB connection
+async function connectToMongo() {
+  try {
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    console.log('✓ Connected to MongoDB');
+    
+    db = client.db(DB_NAME);
+    keysCollection = db.collection('keys');
+    devicesCollection = db.collection('devices');
+    configCollection = db.collection('config');
+    
+    // Ensure indexes
+    await keysCollection.createIndex({ key: 1 }, { unique: true });
+    await devicesCollection.createIndex({ deviceId: 1 }, { unique: true });
+    await devicesCollection.createIndex({ key: 1 });
+    
+    // Initialize config if not exists
+    const config = await configCollection.findOne({ _id: 'settings' });
+    if (!config) {
+      await configCollection.insertOne({
+        _id: 'settings',
+        maxDevicesPerKey: positiveInteger(process.env.MAX_DEVICES_PER_KEY, 1)
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('✗ MongoDB connection failed:', error.message);
+    throw error;
   }
 }
 
-function saveData() {
-  writeJson(KEYS_FILE, Array.from(keys.values()).map(data => ({
-    key: data.key,
-    createdAt: data.createdAt,
-    expiresAt: data.expiresAt,
-    devices: Array.from(data.devices),
-    active: data.active
-  })));
-  writeJson(DEVICES_FILE, Array.from(sessions.entries()).map(([deviceId, session]) => ({
-    deviceId,
-    key: session.key,
-    lastHeartbeat: session.lastHeartbeat
-  })));
-  writeJson(CONFIG_FILE, { maxDevicesPerKey });
+async function getConfig() {
+  const config = await configCollection.findOne({ _id: 'settings' });
+  return config || { maxDevicesPerKey: 1 };
 }
 
-saveData();
+async function updateConfig(maxDevicesPerKey) {
+  await configCollection.updateOne(
+    { _id: 'settings' },
+    { $set: { maxDevicesPerKey } },
+    { upsert: true }
+  );
+}
 
 function createAdminToken() {
   const payload = Buffer.from(JSON.stringify({
@@ -134,70 +117,123 @@ function isValidKeyFormat(key) {
   return typeof key === 'string' && /^[A-Z0-9\-]{2,50}$/.test(key.toUpperCase());
 }
 
-function getActiveDevices(keyData, now = Date.now()) {
-  return Array.from(keyData.devices).filter(deviceId => {
-    const session = sessions.get(deviceId);
-    return session && session.key === keyData.key && now - session.lastHeartbeat < SESSION_TIMEOUT_MS;
-  });
+async function getActiveDevices(keyData, now = Date.now()) {
+  const activeDevices = await devicesCollection.find({
+    key: keyData.key,
+    lastHeartbeat: { $gt: now - SESSION_TIMEOUT_MS }
+  }).toArray();
+  return activeDevices.map(d => d.deviceId);
 }
 
-app.post('/api/generate', adminAuth, (req, res) => {
-  const hours = positiveInteger(req.body.hours, 25);
-  const customKey = req.body.customKey;
-  let key;
-  if (customKey) {
-    const upperKey = customKey.toUpperCase().trim();
-    if (!isValidKeyFormat(upperKey)) {
-      return res.json({ success: false, message: 'Invalid key. Use at least 2 characters (letters/numbers/hyphens only)' });
+app.post('/api/generate', adminAuth, async (req, res) => {
+  try {
+    const hours = positiveInteger(req.body.hours, 25);
+    const customKey = req.body.customKey;
+    let key;
+    
+    if (customKey) {
+      const upperKey = customKey.toUpperCase().trim();
+      if (!isValidKeyFormat(upperKey)) {
+        return res.json({ success: false, message: 'Invalid key. Use at least 2 characters (letters/numbers/hyphens only)' });
+      }
+      const existing = await keysCollection.findOne({ key: upperKey });
+      if (existing) return res.json({ success: false, message: 'Key already exists. Please use a different key.' });
+      key = upperKey;
+    } else {
+      do { 
+        key = generateKey(); 
+        const existing = await keysCollection.findOne({ key });
+        if (!existing) break;
+      } while (true);
     }
-    if (keys.has(upperKey)) return res.json({ success: false, message: 'Key already exists. Please use a different key.' });
-    key = upperKey;
-  } else {
-    do { key = generateKey(); } while (keys.has(key));
-  }
 
-  const now = Date.now();
-  keys.set(key, { key, createdAt: now, expiresAt: now + hours * 60 * 60 * 1000, devices: new Set(), active: true });
-  saveData();
-  res.json({ success: true, key, expiresAt: now + hours * 60 * 60 * 1000, hours, isCustom: !!customKey });
+    const now = Date.now();
+    await keysCollection.insertOne({
+      key,
+      createdAt: now,
+      expiresAt: now + hours * 60 * 60 * 1000,
+      devices: [],
+      active: true
+    });
+    
+    res.json({ success: true, key, expiresAt: now + hours * 60 * 60 * 1000, hours, isCustom: !!customKey });
+  } catch (error) {
+    console.error('Generate error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
-function verifyKeyLogic(key, deviceId, res) {
-  if (!key || !deviceId) return res.json({ success: false, message: 'Missing key or deviceId' });
-  const keyData = keys.get(key);
-  if (!keyData) return res.json({ success: false, message: 'Invalid key - not found' });
-  if (!keyData.active) return res.json({ success: false, message: 'Key has been disabled by admin' });
-  if (Date.now() > keyData.expiresAt) return res.json({ success: false, message: 'Key has expired' });
+async function verifyKeyLogic(key, deviceId, res) {
+  try {
+    if (!key || !deviceId) return res.json({ success: false, message: 'Missing key or deviceId' });
+    
+    const keyData = await keysCollection.findOne({ key });
+    if (!keyData) return res.json({ success: false, message: 'Invalid key - not found' });
+    if (!keyData.active) return res.json({ success: false, message: 'Key has been disabled by admin' });
+    if (Date.now() > keyData.expiresAt) return res.json({ success: false, message: 'Key has expired' });
 
-  const activeDevices = getActiveDevices(keyData);
-  const existingSession = sessions.get(deviceId);
-  const alreadyRegistered = keyData.devices.has(deviceId) && existingSession && existingSession.key === key;
-  if (!alreadyRegistered && activeDevices.length >= maxDevicesPerKey) {
-    return res.json({ success: false, message: `Device limit reached (${maxDevicesPerKey} device${maxDevicesPerKey === 1 ? '' : 's'} max).` });
+    const config = await getConfig();
+    const activeDevices = await getActiveDevices(keyData);
+    const existingSession = await devicesCollection.findOne({ deviceId });
+    const alreadyRegistered = keyData.devices.includes(deviceId) && existingSession && existingSession.key === key;
+    
+    if (!alreadyRegistered && activeDevices.length >= config.maxDevicesPerKey) {
+      return res.json({ success: false, message: `Device limit reached (${config.maxDevicesPerKey} device${config.maxDevicesPerKey === 1 ? '' : 's'} max).` });
+    }
+
+    // Add device to key's device list if not already there
+    if (!keyData.devices.includes(deviceId)) {
+      await keysCollection.updateOne(
+        { key },
+        { $addToSet: { devices: deviceId } }
+      );
+    }
+    
+    // Update or create device session
+    await devicesCollection.updateOne(
+      { deviceId },
+      { 
+        $set: { 
+          key, 
+          lastHeartbeat: Date.now() 
+        } 
+      },
+      { upsert: true }
+    );
+    
+    res.json({ success: true, message: 'Key verified', expiresAt: keyData.expiresAt, timeLeft: keyData.expiresAt - Date.now() });
+  } catch (error) {
+    console.error('Verify error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
-
-  keyData.devices.add(deviceId);
-  sessions.set(deviceId, { key, lastHeartbeat: Date.now() });
-  saveData();
-  res.json({ success: true, message: 'Key verified', expiresAt: keyData.expiresAt, timeLeft: keyData.expiresAt - Date.now() });
 }
 
 app.get('/api/verify', (req, res) => verifyKeyLogic(req.query.key, req.query.deviceId, res));
 app.post('/api/verify', (req, res) => verifyKeyLogic(req.body.key, req.body.deviceId, res));
 
-app.post('/api/heartbeat', (req, res) => {
-  const { key, deviceId } = req.body;
-  const keyData = keys.get(key);
-  const session = sessions.get(deviceId);
-  if (!key || !deviceId || !keyData || !keyData.active || Date.now() > keyData.expiresAt) {
-    return res.json({ success: false, message: 'Key invalid or expired' });
+app.post('/api/heartbeat', async (req, res) => {
+  try {
+    const { key, deviceId } = req.body;
+    const keyData = await keysCollection.findOne({ key });
+    const session = await devicesCollection.findOne({ deviceId });
+    
+    if (!key || !deviceId || !keyData || !keyData.active || Date.now() > keyData.expiresAt) {
+      return res.json({ success: false, message: 'Key invalid or expired' });
+    }
+    if (!keyData.devices.includes(deviceId) || !session || session.key !== key) {
+      return res.json({ success: false, message: 'Device not registered for this key' });
+    }
+    
+    await devicesCollection.updateOne(
+      { deviceId },
+      { $set: { lastHeartbeat: Date.now() } }
+    );
+    
+    res.json({ success: true, timeLeft: keyData.expiresAt - Date.now() });
+  } catch (error) {
+    console.error('Heartbeat error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
-  if (!keyData.devices.has(deviceId) || !session || session.key !== key) {
-    return res.json({ success: false, message: 'Device not registered for this key' });
-  }
-  session.lastHeartbeat = Date.now();
-  saveData();
-  res.json({ success: true, timeLeft: keyData.expiresAt - Date.now() });
 });
 
 app.post('/api/admin/login', (req, res) => {
@@ -205,73 +241,141 @@ app.post('/api/admin/login', (req, res) => {
   res.json({ success: false, message: 'Wrong password' });
 });
 
-app.get('/api/settings', adminAuth, (req, res) => res.json({ maxDevicesPerKey }));
-
-app.post('/api/settings', adminAuth, (req, res) => {
-  const requestedLimit = positiveInteger(req.body.maxDevicesPerKey, 0);
-  if (!requestedLimit || requestedLimit > 100000) {
-    return res.status(400).json({ success: false, message: 'maxDevicesPerKey must be a whole number from 1 to 100000' });
+app.get('/api/settings', adminAuth, async (req, res) => {
+  try {
+    const config = await getConfig();
+    res.json({ maxDevicesPerKey: config.maxDevicesPerKey });
+  } catch (error) {
+    console.error('Settings error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
-  maxDevicesPerKey = requestedLimit;
-  saveData();
-  res.json({ success: true, maxDevicesPerKey });
 });
 
-app.get('/api/keys', adminAuth, (req, res) => {
-  const now = Date.now();
-  const keyList = Array.from(keys.values()).map(data => ({
-    key: data.key,
-    createdAt: data.createdAt,
-    expiresAt: data.expiresAt,
-    active: data.active,
-    expired: now > data.expiresAt,
-    deviceCount: getActiveDevices(data, now).length,
-    maxDevices: maxDevicesPerKey,
-    timeLeft: Math.max(0, data.expiresAt - now)
-  })).sort((a, b) => b.createdAt - a.createdAt);
-  res.json(keyList);
-});
-
-app.post('/api/disable', adminAuth, (req, res) => {
-  const keyData = keys.get(req.body.key);
-  if (!keyData) return res.json({ success: false, message: 'Key not found' });
-  keyData.active = false;
-  saveData();
-  res.json({ success: true, message: 'Key disabled' });
-});
-
-app.post('/api/enable', adminAuth, (req, res) => {
-  const keyData = keys.get(req.body.key);
-  if (!keyData) return res.json({ success: false, message: 'Key not found' });
-  keyData.active = true;
-  saveData();
-  res.json({ success: true, message: 'Key enabled' });
-});
-
-app.post('/api/delete', adminAuth, (req, res) => {
-  if (!keys.has(req.body.key)) return res.json({ success: false, message: 'Key not found' });
-  keys.delete(req.body.key);
-  for (const [deviceId, session] of sessions) if (session.key === req.body.key) sessions.delete(deviceId);
-  saveData();
-  res.json({ success: true, message: 'Key deleted' });
-});
-
-setInterval(() => {
-  const now = Date.now();
-  let changed = false;
-  for (const [deviceId, session] of sessions) {
-    if (now - session.lastHeartbeat > SESSION_TIMEOUT_MS || !keys.has(session.key)) {
-      sessions.delete(deviceId);
-      const keyData = keys.get(session.key);
-      if (keyData) keyData.devices.delete(deviceId);
-      changed = true;
+app.post('/api/settings', adminAuth, async (req, res) => {
+  try {
+    const requestedLimit = positiveInteger(req.body.maxDevicesPerKey, 0);
+    if (!requestedLimit || requestedLimit > 100000) {
+      return res.status(400).json({ success: false, message: 'maxDevicesPerKey must be a whole number from 1 to 100000' });
     }
+    await updateConfig(requestedLimit);
+    res.json({ success: true, maxDevicesPerKey: requestedLimit });
+  } catch (error) {
+    console.error('Update settings error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
-  if (changed) saveData();
+});
+
+app.get('/api/keys', adminAuth, async (req, res) => {
+  try {
+    const now = Date.now();
+    const allKeys = await keysCollection.find().toArray();
+    
+    const keyList = [];
+    for (const data of allKeys) {
+      const activeDevices = await getActiveDevices(data, now);
+      keyList.push({
+        key: data.key,
+        createdAt: data.createdAt,
+        expiresAt: data.expiresAt,
+        active: data.active,
+        expired: now > data.expiresAt,
+        deviceCount: activeDevices.length,
+        maxDevices: (await getConfig()).maxDevicesPerKey,
+        timeLeft: Math.max(0, data.expiresAt - now)
+      });
+    }
+    
+    keyList.sort((a, b) => b.createdAt - a.createdAt);
+    res.json(keyList);
+  } catch (error) {
+    console.error('List keys error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.post('/api/disable', adminAuth, async (req, res) => {
+  try {
+    const result = await keysCollection.updateOne(
+      { key: req.body.key },
+      { $set: { active: false } }
+    );
+    if (result.matchedCount === 0) return res.json({ success: false, message: 'Key not found' });
+    res.json({ success: true, message: 'Key disabled' });
+  } catch (error) {
+    console.error('Disable error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.post('/api/enable', adminAuth, async (req, res) => {
+  try {
+    const result = await keysCollection.updateOne(
+      { key: req.body.key },
+      { $set: { active: true } }
+    );
+    if (result.matchedCount === 0) return res.json({ success: false, message: 'Key not found' });
+    res.json({ success: true, message: 'Key enabled' });
+  } catch (error) {
+    console.error('Enable error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+app.post('/api/delete', adminAuth, async (req, res) => {
+  try {
+    const result = await keysCollection.deleteOne({ key: req.body.key });
+    if (result.deletedCount === 0) return res.json({ success: false, message: 'Key not found' });
+    
+    // Remove all devices associated with this key
+    await devicesCollection.deleteMany({ key: req.body.key });
+    
+    res.json({ success: true, message: 'Key deleted' });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Cleanup inactive sessions
+setInterval(async () => {
+  try {
+    const now = Date.now();
+    
+    // Find expired sessions
+    const expiredSessions = await devicesCollection.find({
+      $or: [
+        { lastHeartbeat: { $lt: now - SESSION_TIMEOUT_MS } }
+      ]
+    }).toArray();
+    
+    for (const session of expiredSessions) {
+      // Remove device from key's device list
+      await keysCollection.updateOne(
+        { key: session.key },
+        { $pull: { devices: session.deviceId } }
+      );
+      
+      // Delete the session
+      await devicesCollection.deleteOne({ deviceId: session.deviceId });
+    }
+    
+    if (expiredSessions.length > 0) {
+      console.log(`Cleaned up ${expiredSessions.length} expired sessions`);
+    }
+  } catch (error) {
+    console.error('Cleanup error:', error);
+  }
 }, 60 * 1000);
 
-app.listen(PORT, () => {
-  console.log(`BGMi Key Server running on port ${PORT}`);
-  console.log(`Max devices per key: ${maxDevicesPerKey}`);
-  console.log(`JSON data directory: ${DATA_DIR}`);
+// Start server
+connectToMongo().then(() => {
+  app.listen(PORT, async () => {
+    const config = await getConfig();
+    console.log(`BGMi Key Server running on port ${PORT}`);
+    console.log(`Max devices per key: ${config.maxDevicesPerKey}`);
+    console.log(`Database: MongoDB (${DB_NAME})`);
+  });
+}).catch(error => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
 });
